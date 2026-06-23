@@ -61,6 +61,70 @@ def process_excel(file):
         split = df[col].astype(str).str.split(r'[~～]', expand=True)
         df.insert(idx2 + 1, f'{col}_結束', split[1].str.strip())
         df[col] = split[0].str.strip()
+
+    #生日
+    df['生日'] = pd.to_datetime(df['生日'].astype(str), errors = 'coerce', format= 'mixed').dt.strftime('%Y年%m月%d日')
+
+    #婚姻狀況
+    for i, row in df.iterrows():
+      if row['婚姻狀況'] == '已婚':
+        df.loc[i, '婚姻狀況'] = '■已婚    □未婚    □離異'
+      elif row['婚姻狀況'] == '未婚':
+        df.loc[i, '婚姻狀況'] = '□已婚    ■未婚    □離異'
+      elif row['婚姻狀況'] == '離異':
+        df.loc[i, '婚姻狀況'] = '□已婚    □未婚    ■離異'
+
+    #血型
+    for i, row in df.iterrows():
+      if row['血型'] == 'A':
+        df.loc[i, '血型'] = '■A    □B    □O    □AB'
+      elif row['血型'] == 'B':
+        df.loc[i, '血型'] = '□A    ■B    □O    □AB'
+      elif row['血型'] == 'O':
+        df.loc[i, '血型'] = '□A    □B    ■O    □AB'
+      elif row['血型'] == 'AB':
+        df.loc[i, '血型'] = '□A    □B    □O    ■AB'
+
+    #原住民身份
+    for i, row in df.iterrows():
+      if row['是否有原住民身分？'] == '是':
+        df.loc[i, '是否有原住民身分？'] = '■是    □否'
+      elif row['是否有原住民身分？'] == '否':
+        df.loc[i, '是否有原住民身分？'] = '□是    ■否'
+      else:
+        df.loc[i, '是否有原住民身分？'] = '□是    □否'
+
+    #兵歷
+    df['兵歷'] = np.where(df['兵歷'] == '役畢','■役畢    □免役','□役畢    ■免役')
+
+    #入伍與退伍時間
+    for col in ['入伍與退伍時間']:
+      idx2 = df.columns.get_loc(col)
+      split1 = df[col].astype(str).str.split(r'[~～]', expand=True)
+
+      if split1.shape[1] == 1:
+        split[1] = ''
+
+      df.insert(idx2 + 1, f'{col}_退伍', split[1].str.strip())
+      df[col] = split[0].str.strip()
+
+    #住宿情況
+    for i, row in df.iterrows():
+      if row['住宿情形'] == '自宅':
+        df.loc[i, '住宿情形'] = '■自宅    □未婚    □其他＿＿＿＿'
+      elif row['住宿情形'] == '租屋':
+        df.loc[i, '住宿情形'] = '□自宅    ■租屋    □其他＿＿＿＿'
+      else:
+        df.loc[i, '住宿情形'] = f'□自宅 □租屋 ■其他__{row["住宿情形"]}__'
+
+    #存歿
+    live = ['存歿', '存歿2', '存歿3', '存歿4', '存歿5']
+    for col in live:
+      for i, row in df.iterrows():
+        if row[col] == '存':
+          df.loc[i, col] = '■  □'
+        else:
+          df.loc[i, col] = '□  ■'
         
     return df
 
