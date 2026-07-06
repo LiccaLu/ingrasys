@@ -5,6 +5,8 @@ import pandas as pd
 from urllib.parse import urljoin
 import re
 from io import BytesIO
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 st.set_page_config(page_title="勞動法規整理工具", page_icon="⚖️", layout="wide")
 
@@ -22,7 +24,7 @@ def scrape_laws(pages=10):
         else:
             url = base_url + f"/index.aspx?page={page}"
 
-        read = requests.get(url)
+        read = requests.get(url, verify=False, timeout=20)
         read.encoding = "utf-8"
 
         soup = BeautifulSoup(read.text, "html.parser")
@@ -75,7 +77,7 @@ def scrape_laws(pages=10):
         source_url = ""
 
         try:
-            response = requests.get(detail_url)
+            response = requests.get(detail_url, verify=False, timeout=20)
             response.encoding = "utf-8"
             detail_soup = BeautifulSoup(response.text, "html.parser")
 
@@ -105,7 +107,7 @@ def scrape_laws(pages=10):
         web_text_url = ""
 
         try:
-            response = requests.get(gazette_url)
+            response = requests.get(gazette_url, verify=False, timeout=20)
             response.encoding = "utf-8"
             soup = BeautifulSoup(response.text, "html.parser")
 
