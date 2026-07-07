@@ -90,19 +90,23 @@ def enrich_one(row):
             history_dates, history_count = search_law_history(law_name)
 
         if source_url:
-            gazette_soup = get_html(source_url)
-
-            for tag in gazette_soup.find_all(["a", "iframe"]):
-                text = tag.get_text(strip=True)
-                href = tag.get("href") or tag.get("src") or ""
-
-                if not href:
-                    continue
-
-                if "網頁文字版" in text or "文字版" in text or "eguploadpubWrapper" in href: web_text_url = urljoin(source_url, href) break
-
-    except Exception:
-        pass
+            try:
+                gazette_soup = get_html(source_url)
+        
+                for a in gazette_soup.find_all("a"):
+                    text = a.get_text(strip=True)
+                    href = a.get("href", "")
+        
+                    if (
+                        "網頁文字" in text
+                        or "文字版" in text
+                        or "eguploadpubWrapper" in href
+                    ):
+                        web_text_url = urljoin(source_url, href)
+                        break
+        
+            except Exception:
+                web_text_url = ""
 
     return law_name, history_dates, history_count, source_url, web_text_url
 
