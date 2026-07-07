@@ -61,15 +61,14 @@ def search_law_history(law_name):
                 category = cols[1].get_text(strip=True)
                 date_text = cols[3].get_text(strip=True)
 
-                # 不要最新動態，只抓以前的解釋令/其他結果
                 if category != "最新動態":
                     dates.append(date_text)
 
         if dates:
-            return dates[0], len(dates)
+            return "、".join(dates), len(dates)
 
     except Exception:
-        return "", 0
+        pass
 
     return "", 0
 
@@ -151,6 +150,7 @@ def scrape_laws(start_date, end_date):
     source_links = []
     web_text_links = []
     law_names = []
+    
     last_dates = []
     history_counts = []
 
@@ -201,7 +201,7 @@ def scrape_laws(start_date, end_date):
         history_counts.append(count)
 
     law_df["法規名稱"] = law_names
-    law_df["上次修改日期"] = last_dates
+    law_df["歷次修改日期"] = last_dates
     law_df["歷史筆數"] = history_counts
     law_df["行政院公報連結"] = source_links
     law_df["網頁文字版連結"] = web_text_links
