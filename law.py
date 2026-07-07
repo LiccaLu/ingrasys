@@ -18,10 +18,19 @@ st.set_page_config(
 )
 
 BASE_URL = "https://laws.mol.gov.tw"
+HEADERS = {
+    "User-Agent": "Mozilla/5.0",
+    "Referer": "https://laws.mol.gov.tw/"
+}
 
 
-def get_html(url, timeout=8):
-    r = requests.get(url, verify=False, timeout=timeout)
+def get_html(url, timeout=10):
+    r = requests.get(
+        url,
+        headers=HEADERS,
+        verify=False,
+        timeout=timeout
+    )
     r.encoding = "utf-8"
     return BeautifulSoup(r.text, "html.parser")
 
@@ -127,7 +136,7 @@ def get_gazette_url(detail_url, detail_soup):
         href = a.get("href", "")
 
         if "行政院公報" in text and href:
-            return urljoin(detail_url, href)
+            return urljoin(detail_url, href.replace("&amp;", "&"))
 
     return ""
 
@@ -139,27 +148,20 @@ def get_text_version_url(gazette_url):
     try:
         soup = get_html(gazette_url)
 
-        # 先抓以前成功過的 a href 寫法
-        for a in soup.find_all("a"):
-            text = a.get_text(strip=True)
-            href = a.get("href", "")
+        for tag in soup.find_all(["a", "iframe"]):
+            text = tag.get_text(strip=True)
+            href = tag.get("href") or tag.get("src") or ""
 
             if not href:
                 continue
 
             if (
-                "網頁文字" in text
+                "網頁文字版" in text
                 or "文字版" in text
                 or "eguploadpubWrapper" in href
+                or "eguploadpub" in href
             ):
-                return urljoin(gazette_url, href)
-
-        # 再抓 iframe src 寫法
-        for iframe in soup.find_all("iframe"):
-            src = iframe.get("src", "")
-
-            if "eguploadpubWrapper" in src:
-                return urljoin(gazette_url, src)
+                return urljoin(gazette_url, href.replace("&amp;", "&"))
 
     except Exception:
         return ""
@@ -236,7 +238,7 @@ def scrape_laws(start_date, end_date):
 
     rows = [row for _, row in df.iterrows()]
 
-    with ThreadPoolExecutor(max_workers=8) as executor:
+    with ThreadPoolExecutor(max_workers=4) as executor:
         enriched = list(executor.map(enrich_one, rows))
 
     enrich_df = pd.DataFrame(enriched)
