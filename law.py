@@ -187,8 +187,6 @@ if st.button("開始整理"):
     else:
         st.success(f"整理完成，共 {len(df)} 筆行政規則")
 
-        gb = GridOptionsBuilder.from_dataframe(df)
-
         st.dataframe(
         df,
         use_container_width=True,
