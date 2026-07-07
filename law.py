@@ -10,11 +10,7 @@ import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-st.set_page_config(
-    page_title="勞動法規整理工具",
-    page_icon="⚖️",
-    layout="wide"
-)
+st.set_page_config(page_title="勞動法規整理工具", page_icon="⚖️", layout="wide")
 
 st.title("⚖️ 勞動法規行政規則整理工具")
 st.write("選擇日期區間後，系統會即時爬取勞動部最新動態，整理行政規則，並產生 Excel 下載檔。")
@@ -23,12 +19,64 @@ base_url = "https://laws.mol.gov.tw"
 
 
 def roc_to_date(roc_text):
-    """
-    把民國日期轉成西元日期
-    例如：115.07.03 -> 2026-07-03
-    """
     y, m, d = roc_text.split(".")
     return date(int(y) + 1911, int(m), int(d))
+
+
+def get_law_name(detail_url):
+    try:
+        response = requests.get(detail_url, verify=False, timeout=8)
+        response.encoding = "utf-8"
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        lines = soup.get_text("\n", strip=True).split("\n")
+
+        for i, line in enumerate(lines):
+            if "法規名稱" in line and i + 1 < len(lines):
+                return lines[i + 1].strip()
+
+    except Exception:
+        return ""
+
+    return ""
+
+
+def search_law_history(law_name):
+    if not law_name:
+        return "", 0
+
+    search_url = base_url + "/SearchResult.aspx"
+
+    try:
+        response = requests.get(
+            search_url,
+            params={"keyword": law_name},
+            verify=False,
+            timeout=8
+        )
+        response.encoding = "utf-8"
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        dates = []
+
+        for row in soup.find_all("tr"):
+            cols = row.find_all("td")
+
+            if len(cols) >= 4:
+                category = cols[1].get_text(strip=True)
+                title = cols[2].get_text(strip=True)
+                date_text = cols[3].get_text(strip=True)
+
+                if category in ["解釋令", "最新動態"] and law_name in title:
+                    dates.append(date_text)
+
+        if dates:
+            return dates[0], len(dates)
+
+    except Exception:
+        return "", 0
+
+    return "", 0
 
 
 def scrape_laws(start_date, end_date):
@@ -36,12 +84,9 @@ def scrape_laws(start_date, end_date):
     page = 1
 
     while True:
-        if page == 1:
-            url = base_url + "/index.aspx"
-        else:
-            url = base_url + f"/index.aspx?page={page}"
+        url = base_url + "/index.aspx" if page == 1 else base_url + f"/index.aspx?page={page}"
 
-        read = requests.get(url, verify=False, timeout=20)
+        read = requests.get(url, verify=False, timeout=8)
         read.encoding = "utf-8"
 
         soup = BeautifulSoup(read.text, "html.parser")
@@ -78,9 +123,7 @@ def scrape_laws(start_date, end_date):
                 continue
 
             title = cols[2].get_text(strip=True)
-
-            title = title.replace("勞動部令：", "")
-            title = title.replace("勞動部公告：", "")
+            title = title.replace("勞動部令：", "").replace("勞動部公告：", "")
 
             effective_date = ""
             match = re.search(r"自(.+?)生效", title)
@@ -110,17 +153,21 @@ def scrape_laws(start_date, end_date):
     if law_df.empty:
         return law_df
 
-    # 找行政院公報連結
     source_links = []
+    web_text_links = []
+    law_names = []
+    last_dates = []
+    history_counts = []
 
     for _, row in law_df.iterrows():
         detail_url = row["公告連結"]
+
         source_url = ""
+        web_text_url = ""
 
         try:
-            response = requests.get(detail_url, verify=False, timeout=20)
+            response = requests.get(detail_url, verify=False, timeout=8)
             response.encoding = "utf-8"
-
             detail_soup = BeautifulSoup(response.text, "html.parser")
 
             for a in detail_soup.find_all("a"):
@@ -133,137 +180,36 @@ def scrape_laws(start_date, end_date):
         except Exception:
             source_url = ""
 
-        source_links.append(source_url)
-
-    law_df["行政院公報連結"] = source_links
-
-    def get_law_name(detail_url):
-    try:
-        response = requests.get(detail_url, verify=False, timeout=8)
-        response.encoding = "utf-8"
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        text = soup.get_text("\n", strip=True).split("\n")
-
-        for i, line in enumerate(text):
-            if "法規名稱" in line and i + 1 < len(text):
-                return text[i + 1]
-
-    except Exception:
-        return ""
-
-    return ""
-
-def search_law_history(law_name):
-    if not law_name:
-        return "", 0
-
-    search_url = base_url + "/SearchResult.aspx"
-
-    try:
-        response = requests.get(
-            search_url,
-            params={"keyword": law_name},
-            verify=False,
-            timeout=8
-        )
-        response.encoding = "utf-8"
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        dates = []
-
-        for row in soup.find_all("tr"):
-            cols = row.find_all("td")
-
-            if len(cols) >= 4:
-                category = cols[1].get_text(strip=True)
-                title = cols[2].get_text(strip=True)
-                date_text = cols[3].get_text(strip=True)
-
-                if law_name in title or "勞動部令" in title:
-                    dates.append(date_text)
-
-        if dates:
-            return dates[0], len(dates)
-
-    except Exception:
-        return "", 0
-
-    return "", 0
-
-    # 找網頁文字版連結
-    web_text_links = []
-    
-    for _, row in law_df.iterrows():
-        gazette_url = row["行政院公報連結"]
-    
-        if not gazette_url:
-            web_text_links.append("")
-            continue
-    
-        web_text_url = ""
-    
-        try:
-            response = requests.get(gazette_url, verify=False, timeout=8)
-            response.encoding = "utf-8"
-            soup = BeautifulSoup(response.text, "html.parser")
-    
-            for a in soup.find_all("a"):
-                href = a.get("href", "")
-    
-                if "eguploadpubWrapper" in href:
-                    web_text_url = urljoin(gazette_url, href)
-                    break
-    
-        except Exception:
-            web_text_url = ""
-    
-        web_text_links.append(web_text_url)
-    
-    law_df["網頁文字版連結"] = web_text_links
-
-    history_dates = []
-
-    for _, row in law_df.iterrows():
-        text_url = row["網頁文字版連結"]
-        last_date = ""
-    
-        if text_url:
+        if source_url:
             try:
-                response = requests.get(text_url, verify=False, timeout=8)
+                response = requests.get(source_url, verify=False, timeout=8)
                 response.encoding = "utf-8"
                 soup = BeautifulSoup(response.text, "html.parser")
-                text = soup.get_text("\n", strip=True)
-    
-                matches = re.findall(r"中華民國(\d+年\d+月\d+日)", text)
-    
-                if matches:
-                    last_date = matches[-1]   # 通常最後一個是最近一次修正/發布日期
-    
-            except Exception:
-                last_date = ""
-    
-        history_dates.append(last_date)
-    
-    law_df["上次修改日期"] = history_dates
 
-    law_names = []
-    last_dates = []
-    history_counts = []
-    
-    for _, row in law_df.iterrows():
-        detail_url = row["公告連結"]
-    
+                for a in soup.find_all("a"):
+                    href = a.get("href", "")
+
+                    if "eguploadpubWrapper" in href:
+                        web_text_url = urljoin(source_url, href)
+                        break
+
+            except Exception:
+                web_text_url = ""
+
         law_name = get_law_name(detail_url)
         last_date, count = search_law_history(law_name)
-    
+
+        source_links.append(source_url)
+        web_text_links.append(web_text_url)
         law_names.append(law_name)
         last_dates.append(last_date)
         history_counts.append(count)
-    
+
     law_df["法規名稱"] = law_names
     law_df["上次修改日期"] = last_dates
     law_df["歷史筆數"] = history_counts
+    law_df["行政院公報連結"] = source_links
+    law_df["網頁文字版連結"] = web_text_links
 
     return law_df
 
@@ -284,25 +230,25 @@ if st.button("開始整理"):
         st.success(f"整理完成，共 {len(df)} 筆行政規則")
 
         st.dataframe(
-        df,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "公告連結": st.column_config.LinkColumn(
-                "公告連結",
-                display_text="開啟公告"
-            ),
-            "行政院公報連結": st.column_config.LinkColumn(
-                "行政院公報連結",
-                display_text="開啟公報"
-            ),
-            "網頁文字版連結": st.column_config.LinkColumn(
-                "網頁文字版連結",
-                display_text="開啟文字版"
-            ),
-        }
-    )
-            
+            df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "公告連結": st.column_config.LinkColumn(
+                    "公告連結",
+                    display_text="開啟公告"
+                ),
+                "行政院公報連結": st.column_config.LinkColumn(
+                    "行政院公報連結",
+                    display_text="開啟公報"
+                ),
+                "網頁文字版連結": st.column_config.LinkColumn(
+                    "網頁文字版連結",
+                    display_text="開啟文字版"
+                ),
+            }
+        )
+
         output = BytesIO()
 
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
