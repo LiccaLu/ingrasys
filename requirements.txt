@@ -5,4 +5,3 @@ openpyxl
 xlrd
 requests
 beautifulsoup4
-streamlit-aggrid
