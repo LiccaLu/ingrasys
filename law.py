@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
-from urllib.parse import urljoin
+from urllib.parse import urljoin, quote
 import re
 from io import BytesIO
 from datetime import date
@@ -45,15 +45,10 @@ def search_law_history(law_name):
     if not law_name:
         return "", 0
 
-    search_url = base_url + "/SearchResult.aspx"
+    search_url = base_url + "/SearchResult.aspx?keyword=" + quote(law_name)
 
     try:
-        response = requests.get(
-            search_url,
-            params={"keyword": law_name},
-            verify=False,
-            timeout=8
-        )
+        response = requests.get(search_url, verify=False, timeout=8)
         response.encoding = "utf-8"
         soup = BeautifulSoup(response.text, "html.parser")
 
@@ -67,7 +62,7 @@ def search_law_history(law_name):
                 title = cols[2].get_text(strip=True)
                 date_text = cols[3].get_text(strip=True)
 
-                if category in ["解釋令", "最新動態"] and law_name in title:
+                if law_name in title:
                     dates.append(date_text)
 
         if dates:
