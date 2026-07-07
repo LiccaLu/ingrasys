@@ -110,12 +110,10 @@ def enrich_one(row):
                 text = a.get_text(strip=True)
                 href = a.get("href", "")
 
-                if (
-                    "網頁文字版" in text
-                    or "文字版" in text
-                    or "eguploadpubWrapper" in href
-                    or "fileView" in href
-                ):
+                if not href:
+                    continue
+            
+                if "網頁文字版" in text or "eguploadpubWrapper" in href:
                     web_text_url = urljoin(source_url, href)
                     break
 
