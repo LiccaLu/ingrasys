@@ -79,7 +79,7 @@ HEADERS = {
 }
 
 
-def get_html(url, timeout=90):
+def get_html(url, timeout=25):
     try:
         r = requests.get(
             url,
