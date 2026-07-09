@@ -6,6 +6,9 @@ from urllib.parse import urljoin, quote
 import re
 from io import BytesIO
 from datetime import date
+from datetime import datetime
+from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+from openpyxl.utils import get_column_letter
 from concurrent.futures import ThreadPoolExecutor
 import urllib3
 
@@ -82,7 +85,7 @@ HEADERS = {
 connection_failed = False
 
 
-def get_html(url, timeout=8):
+def get_html(url, timeout=25):
     global connection_failed
 
     try:
@@ -98,10 +101,13 @@ def get_html(url, timeout=8):
 
     except requests.exceptions.Timeout:
         connection_failed = True
+        st.warning(f"連線逾時，略過：{url}")
         return None
 
-    except requests.exceptions.RequestException:
+    except requests.exceptions.RequestException as e:
         connection_failed = True
+        st.warning(f"無法連線，略過：{url}")
+        st.caption(repr(e))
         return None
 
 
@@ -138,7 +144,7 @@ def scrape_index(start_date, end_date):
         soup = get_html(url)
 
         if soup is None:
-            st.error("連不上勞動部網站。這不是沒有資料，是目前環境無法連到 laws.mol.gov.tw。")
+            st.error("連不上勞動部網站。這不是沒有資料，是目前部署環境無法連到 laws.mol.gov.tw。")
             st.stop()
 
         table = soup.find("table", class_="table-list news-table")
@@ -330,8 +336,152 @@ def scrape_laws(start_date, end_date):
 def to_excel(df):
     output = BytesIO()
 
+    export_df = df.copy()
+
+    columns_order = [
+        "公發布日",
+        "類別",
+        "法規名稱",
+        "訊息摘要",
+        "生效日期",
+        "歷次修改日期",
+        "歷史筆數",
+        "公告連結",
+        "行政院公報連結",
+        "網頁文字版連結"
+    ]
+
+    export_df = export_df[[c for c in columns_order if c in export_df.columns]]
+
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="行政規則整理")
+        export_df.to_excel(
+            writer,
+            index=False,
+            sheet_name="行政規則整理",
+            startrow=4
+        )
+
+        wb = writer.book
+        ws = writer.sheets["行政規則整理"]
+
+        dark_blue = "1F4E79"
+        light_gray = "EAF0F6"
+        white = "FFFFFF"
+        border_gray = "BFBFBF"
+
+        thin_border = Border(
+            left=Side(style="thin", color=border_gray),
+            right=Side(style="thin", color=border_gray),
+            top=Side(style="thin", color=border_gray),
+            bottom=Side(style="thin", color=border_gray)
+        )
+
+        max_col = len(export_df.columns)
+
+        # 報表大標題
+        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=max_col)
+        ws["A1"] = "勞動部行政規則整理報告"
+        ws["A1"].font = Font(size=18, bold=True, color=dark_blue)
+        ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
+
+        # 查詢期間
+        ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=max_col)
+        ws["A2"] = f"查詢期間：{start_date.strftime('%Y/%m/%d')} ~ {end_date.strftime('%Y/%m/%d')}｜共 {len(export_df)} 筆"
+        ws["A2"].font = Font(size=11, bold=True, color="404040")
+        ws["A2"].alignment = Alignment(horizontal="center", vertical="center")
+
+        # 產生時間
+        ws.merge_cells(start_row=3, start_column=1, end_row=3, end_column=max_col)
+        ws["A3"] = f"產生時間：{datetime.now().strftime('%Y/%m/%d %H:%M')}"
+        ws["A3"].font = Font(size=10, color="666666")
+        ws["A3"].alignment = Alignment(horizontal="center", vertical="center")
+
+        header_row = 5
+
+        # 標題列
+        for cell in ws[header_row]:
+            cell.fill = PatternFill("solid", fgColor=dark_blue)
+            cell.font = Font(color=white, bold=True, size=10)
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            cell.border = thin_border
+
+        # 內容列
+        for row in range(header_row + 1, ws.max_row + 1):
+            fill_color = light_gray if row % 2 == 0 else white
+
+            for col in range(1, ws.max_column + 1):
+                cell = ws.cell(row=row, column=col)
+                cell.fill = PatternFill("solid", fgColor=fill_color)
+                cell.border = thin_border
+                cell.font = Font(size=10)
+                cell.alignment = Alignment(
+                    horizontal="left",
+                    vertical="top",
+                    wrap_text=True
+                )
+
+        # 超連結改成文字
+        link_columns = {
+            "公告連結": "開啟公告",
+            "行政院公報連結": "開啟公報",
+            "網頁文字版連結": "開啟文字版"
+        }
+
+        headers = [cell.value for cell in ws[header_row]]
+
+        for col_name, display_text in link_columns.items():
+            if col_name in headers:
+                col_idx = headers.index(col_name) + 1
+
+                for row in range(header_row + 1, ws.max_row + 1):
+                    cell = ws.cell(row=row, column=col_idx)
+                    url = cell.value
+
+                    if url:
+                        cell.value = display_text
+                        cell.hyperlink = url
+                        cell.style = "Hyperlink"
+                        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+        # 欄寬
+        column_widths = {
+            "公發布日": 12,
+            "類別": 12,
+            "法規名稱": 38,
+            "訊息摘要": 55,
+            "生效日期": 18,
+            "歷次修改日期": 28,
+            "歷史筆數": 10,
+            "公告連結": 14,
+            "行政院公報連結": 14,
+            "網頁文字版連結": 14
+        }
+
+        for idx, col_name in enumerate(headers, start=1):
+            ws.column_dimensions[get_column_letter(idx)].width = column_widths.get(col_name, 18)
+
+        # 列高
+        ws.row_dimensions[1].height = 32
+        ws.row_dimensions[2].height = 22
+        ws.row_dimensions[3].height = 20
+        ws.row_dimensions[header_row].height = 35
+
+        for row in range(header_row + 1, ws.max_row + 1):
+            ws.row_dimensions[row].height = 70
+
+        # 凍結標題列
+        ws.freeze_panes = "A6"
+
+        # 篩選
+        ws.auto_filter.ref = f"A5:{get_column_letter(ws.max_column)}{ws.max_row}"
+
+        # 隱藏格線
+        ws.sheet_view.showGridLines = False
+
+        # 橫向列印
+        ws.page_setup.orientation = "landscape"
+        ws.page_setup.fitToWidth = 1
+        ws.page_setup.fitToHeight = 0
 
     return output.getvalue()
 
@@ -347,15 +497,11 @@ if start_date > end_date:
     st.stop()
 
 
-if st.button("開始整理", type="primary"):
+if st.button("開始整理"):
     connection_failed = False
 
     with st.spinner("正在爬取資料，請稍候..."):
         df = scrape_laws(start_date, end_date)
-
-    if connection_failed:
-        st.error("網站連線失敗，所以沒有產生資料。請改用本機執行，或換 Render / Railway / VPS 部署。")
-        st.stop()
 
     if df.empty:
         st.warning("成功連上網站，但這個日期區間沒有找到行政規則。")
