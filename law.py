@@ -76,15 +76,25 @@ HEADERS = {
 }
 
 
-def get_html(url, timeout=10):
-    r = requests.get(
-        url,
-        headers=HEADERS,
-        verify=False,
-        timeout=timeout
-    )
-    r.encoding = "utf-8"
-    return BeautifulSoup(r.text, "html.parser")
+def get_html(url, timeout=25):
+    try:
+        r = requests.get(
+            url,
+            headers=HEADERS,
+            verify=False,
+            timeout=timeout
+        )
+        r.raise_for_status()
+        r.encoding = "utf-8"
+        return BeautifulSoup(r.text, "html.parser")
+
+    except requests.exceptions.Timeout:
+        st.warning(f"連線逾時，略過：{url}")
+        return None
+
+    except requests.exceptions.RequestException as e:
+        st.warning(f"無法連線，略過：{url}")
+        return None
 
 
 def roc_to_date(roc_text):
@@ -118,6 +128,10 @@ def scrape_index(start_date, end_date):
             url = BASE_URL + f"/index.aspx?page={page}"
 
         soup = get_html(url)
+
+        if soup is None:
+            break
+            
         table = soup.find("table", class_="table-list news-table")
 
         if table is None:
@@ -198,7 +212,9 @@ def get_text_version_url(gazette_url):
         return ""
 
     try:
-        soup = get_html(gazette_url)
+        soup = get_html(gazette_url)\
+        if soup is None:
+            return ""
 
         for tag in soup.find_all(["a", "iframe"]):
             text = tag.get_text(strip=True)
@@ -229,6 +245,8 @@ def search_history(law_name):
 
     try:
         soup = get_html(search_url)
+        if soup is None:
+            return "", 0
         dates = []
 
         for row in soup.find_all("tr"):
@@ -290,7 +308,7 @@ def scrape_laws(start_date, end_date):
 
     rows = [row for _, row in df.iterrows()]
 
-    with ThreadPoolExecutor(max_workers=4) as executor:
+    with ThreadPoolExecutor(max_workers=2) as executor:
         enriched = list(executor.map(enrich_one, rows))
 
     enrich_df = pd.DataFrame(enriched)
