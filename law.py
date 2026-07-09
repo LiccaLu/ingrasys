@@ -17,6 +17,58 @@ st.set_page_config(
     layout="wide"
 )
 
+st.markdown("""
+<style>
+.block-container {
+    padding-top: 2rem;
+    max-width: 1200px;
+}
+
+h1 {
+    font-size: 42px !important;
+    font-weight: 800 !important;
+}
+
+.stButton > button {
+    background: #1f7a3f;
+    color: white;
+    border-radius: 10px;
+    padding: 0.6rem 1.4rem;
+    border: none;
+    font-weight: 700;
+}
+
+.stButton > button:hover {
+    background: #166534;
+    color: white;
+}
+
+div[data-testid="stDateInput"] input {
+    border-radius: 10px;
+}
+
+div[data-testid="stAlert"] {
+    border-radius: 14px;
+}
+
+[data-testid="stDataFrame"] {
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+}
+
+.stDownloadButton > button {
+    background: #2563eb;
+    color: white;
+    border-radius: 10px;
+    padding: 0.6rem 1.4rem;
+    font-weight: 700;
+    border: none;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
 BASE_URL = "https://laws.mol.gov.tw"
 HEADERS = {
     "User-Agent": "Mozilla/5.0",
