@@ -70,6 +70,7 @@ div[data-testid="stAlert"] {
 
 
 BASE_URL = "https://laws.mol.gov.tw"
+
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -78,8 +79,12 @@ HEADERS = {
     "Connection": "close",
 }
 
+connection_failed = False
 
-def get_html(url, timeout=25):
+
+def get_html(url, timeout=90):
+    global connection_failed
+
     try:
         r = requests.get(
             url,
@@ -92,15 +97,14 @@ def get_html(url, timeout=25):
         return BeautifulSoup(r.text, "html.parser")
 
     except requests.exceptions.Timeout:
+        connection_failed = True
         st.warning(f"連線逾時，略過：{url}")
         return None
 
     except requests.exceptions.RequestException as e:
+        connection_failed = True
         st.warning(f"無法連線，略過：{url}")
-        return None
-
-    except Exception as e:
-        st.error(repr(e))
+        st.caption(repr(e))
         return None
 
 
@@ -137,9 +141,9 @@ def scrape_index(start_date, end_date):
         soup = get_html(url)
 
         if soup is None:
-            st.error("連不上勞動部網站，這不是沒有資料，是網站連線失敗。")
-            return pd.DataFrame()
-            
+            st.error("連不上勞動部網站。這不是沒有資料，是目前部署環境無法連到 laws.mol.gov.tw。")
+            st.stop()
+
         table = soup.find("table", class_="table-list news-table")
 
         if table is None:
@@ -195,6 +199,9 @@ def scrape_index(start_date, end_date):
 
 
 def get_law_name(detail_soup):
+    if detail_soup is None:
+        return ""
+
     lines = detail_soup.get_text("\n", strip=True).split("\n")
 
     for i, line in enumerate(lines):
@@ -205,6 +212,9 @@ def get_law_name(detail_soup):
 
 
 def get_gazette_url(detail_url, detail_soup):
+    if detail_soup is None:
+        return ""
+
     for a in detail_soup.find_all("a"):
         text = a.get_text(strip=True)
         href = a.get("href", "")
@@ -219,28 +229,25 @@ def get_text_version_url(gazette_url):
     if not gazette_url:
         return ""
 
-    try:
-        soup = get_html(gazette_url)
-        if soup is None:
-            return ""
+    soup = get_html(gazette_url)
 
-        for tag in soup.find_all(["a", "iframe"]):
-            text = tag.get_text(strip=True)
-            href = tag.get("href") or tag.get("src") or ""
-
-            if not href:
-                continue
-
-            if (
-                "網頁文字版" in text
-                or "文字版" in text
-                or "eguploadpubWrapper" in href
-                or "eguploadpub" in href
-            ):
-                return urljoin(gazette_url, href.replace("&amp;", "&"))
-
-    except Exception:
+    if soup is None:
         return ""
+
+    for tag in soup.find_all(["a", "iframe"]):
+        text = tag.get_text(strip=True)
+        href = tag.get("href") or tag.get("src") or ""
+
+        if not href:
+            continue
+
+        if (
+            "網頁文字版" in text
+            or "文字版" in text
+            or "eguploadpubWrapper" in href
+            or "eguploadpub" in href
+        ):
+            return urljoin(gazette_url, href.replace("&amp;", "&"))
 
     return ""
 
@@ -251,29 +258,27 @@ def search_history(law_name):
 
     search_url = BASE_URL + "/results.aspx?searchmode=global&keyword=" + quote(law_name)
 
-    try:
-        soup = get_html(search_url)
-        if soup is None:
-            return "", 0
-        dates = []
+    soup = get_html(search_url)
 
-        for row in soup.find_all("tr"):
-            cols = row.find_all("td")
+    if soup is None:
+        return "", 0
 
-            if len(cols) < 4:
-                continue
+    dates = []
 
-            category = cols[1].get_text(strip=True)
-            date_text = cols[3].get_text(strip=True)
+    for row in soup.find_all("tr"):
+        cols = row.find_all("td")
 
-            if category != "最新動態":
-                dates.append(date_text)
+        if len(cols) < 4:
+            continue
 
-        if dates:
-            return "、".join(dates), len(dates)
+        category = cols[1].get_text(strip=True)
+        date_text = cols[3].get_text(strip=True)
 
-    except Exception:
-        pass
+        if category != "最新動態":
+            dates.append(date_text)
+
+    if dates:
+        return "、".join(dates), len(dates)
 
     return "", 0
 
@@ -290,11 +295,11 @@ def enrich_one(row):
     try:
         detail_soup = get_html(notice_url)
 
-        law_name = get_law_name(detail_soup)
-        gazette_url = get_gazette_url(notice_url, detail_soup)
-        text_url = get_text_version_url(gazette_url)
-
-        history_dates, history_count = search_history(law_name)
+        if detail_soup is not None:
+            law_name = get_law_name(detail_soup)
+            gazette_url = get_gazette_url(notice_url, detail_soup)
+            text_url = get_text_version_url(gazette_url)
+            history_dates, history_count = search_history(law_name)
 
     except Exception:
         pass
@@ -316,7 +321,7 @@ def scrape_laws(start_date, end_date):
 
     rows = [row for _, row in df.iterrows()]
 
-    with ThreadPoolExecutor(max_workers=2) as executor:
+    with ThreadPoolExecutor(max_workers=1) as executor:
         enriched = list(executor.map(enrich_one, rows))
 
     enrich_df = pd.DataFrame(enriched)
@@ -342,13 +347,37 @@ end_date = st.date_input("結束日期", value=date(2026, 7, 7))
 
 if start_date > end_date:
     st.error("開始日期不能晚於結束日期。")
+    st.stop()
+
+
+if st.button("測試勞動部網站連線"):
+    try:
+        r = requests.get(
+            "https://laws.mol.gov.tw/index.aspx",
+            headers=HEADERS,
+            verify=False,
+            timeout=90
+        )
+        r.raise_for_status()
+        st.success(f"連線成功，狀態碼：{r.status_code}")
+        st.code(r.text[:300])
+    except Exception as e:
+        st.error("連線失敗")
+        st.code(repr(e))
+
 
 if st.button("開始整理"):
+    connection_failed = False
+
     with st.spinner("正在爬取資料，請稍候..."):
         df = scrape_laws(start_date, end_date)
 
+    if connection_failed:
+        st.error("網站連線失敗，所以沒有產生資料。請改用本機執行，或換 Render / Railway / VPS 部署。")
+        st.stop()
+
     if df.empty:
-        st.warning("這個日期區間沒有找到行政規則。")
+        st.warning("成功連上網站，但這個日期區間沒有找到行政規則。")
     else:
         st.success(f"整理完成，共 {len(df)} 筆行政規則")
 
