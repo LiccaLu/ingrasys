@@ -98,12 +98,10 @@ def get_html(url, timeout=8):
 
     except requests.exceptions.Timeout:
         connection_failed = True
-        st.error("連不上勞動部網站。這不是沒有資料，是目前環境連線逾時。")
         return None
 
-    except requests.exceptions.RequestException as e:
+    except requests.exceptions.RequestException:
         connection_failed = True
-        st.error("無法連線到勞動部網站。")
         return None
 
 
@@ -140,7 +138,7 @@ def scrape_index(start_date, end_date):
         soup = get_html(url)
 
         if soup is None:
-            st.error("連不上勞動部網站。這不是沒有資料，是目前部署環境無法連到 laws.mol.gov.tw。")
+            st.error("連不上勞動部網站。這不是沒有資料，是目前環境無法連到 laws.mol.gov.tw。")
             st.stop()
 
         table = soup.find("table", class_="table-list news-table")
