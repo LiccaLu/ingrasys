@@ -79,7 +79,7 @@ HEADERS = {
 }
 
 
-def get_html(url, timeout=25):
+def get_html(url, timeout=90):
     try:
         r = requests.get(
             url,
@@ -137,7 +137,8 @@ def scrape_index(start_date, end_date):
         soup = get_html(url)
 
         if soup is None:
-            break
+            st.error("連不上勞動部網站，這不是沒有資料，是網站連線失敗。")
+            return pd.DataFrame()
             
         table = soup.find("table", class_="table-list news-table")
 
