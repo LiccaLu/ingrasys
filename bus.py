@@ -286,15 +286,6 @@ if calculate:
     display_detail["小計"] = display_detail["小計"].map(lambda x: f"NT$ {x:,}")
     st.dataframe(display_detail, use_container_width=True, hide_index=True)
 
-    csv_data = detail_df.to_csv(index=False).encode("utf-8-sig")
-    st.download_button(
-        "下載計算明細 CSV",
-        data=csv_data,
-        file_name="Ingrasys外勞交通車費用明細.csv",
-        mime="text/csv",
-        use_container_width=True,
-    )
-
     if warnings:
         with st.expander(f"注意事項（{len(warnings)}）"):
             for warning in warnings:
