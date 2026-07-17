@@ -245,9 +245,9 @@ with st.expander("使用說明與判定規則"):
 
 text = st.text_area(
     "貼上交通車訊息",
-    value=SAMPLE_TEXT,
-    height=430,
-    placeholder="請貼上當天交通車內容……",
+    value="",
+    height=500,
+    placeholder="請貼上當天交通車訊息",
 )
 
 calculate = st.button("開始計算", type="primary", use_container_width=True)
