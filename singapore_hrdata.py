@@ -1,852 +1,1299 @@
-from __future__ import annotations
+import io
+import re
+from datetime import datetime, time
+from typing import Optional, Tuple
 
-from io import BytesIO
-from typing import Dict, List, Optional, Tuple
-
-import numpy as np
 import pandas as pd
 import streamlit as st
 
 
-# =========================================================
-# App configuration
-# =========================================================
+# ============================================================
+# PAGE CONFIG
+# ============================================================
 st.set_page_config(
-    page_title="MUSTER | Attendance & Leave",
-    page_icon="📋",
+    page_title="Ingrasys Singapore HR Data Analysis",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 
-# =========================================================
-# Styling
-# =========================================================
+# ============================================================
+# CUSTOM STYLE
+# ============================================================
 st.markdown(
     """
     <style>
-        .stApp {
-            background: #f4f6f9;
-        }
+    :root {
+        --background: #f4f6f8;
+        --card: #ffffff;
+        --border: #d9dee7;
+        --text: #202633;
+        --muted: #7d8798;
+        --navy: #243247;
+        --accent: #b8791c;
+        --accent-soft: #f5eee3;
+        --danger: #b42318;
+        --danger-soft: #fee4e2;
+        --warning: #b54708;
+        --warning-soft: #fef0c7;
+        --success: #027a48;
+        --success-soft: #d1fadf;
+        --blue-soft: #eaf1fb;
+    }
 
-        [data-testid="stSidebar"] {
-            background: #ffffff;
-            border-right: 1px solid #dfe3ea;
-        }
+    html, body, [class*="css"] {
+        font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--text);
+    }
 
-        .brand-title {
-            font-size: 30px;
-            font-weight: 900;
-            letter-spacing: -1px;
-            margin-bottom: 0;
-            color: #202738;
-        }
+    .stApp {
+        background: var(--background);
+    }
 
-        .brand-subtitle {
-            font-family: monospace;
-            font-size: 13px;
-            color: #8a93a5;
-            margin-top: -4px;
-            margin-bottom: 28px;
-        }
+    [data-testid="stSidebar"] {
+        background: #ffffff;
+        border-right: 1px solid var(--border);
+    }
 
-        .page-title {
-            font-size: 30px;
-            font-weight: 800;
-            color: #202738;
-            margin-bottom: 12px;
-        }
+    [data-testid="stSidebar"] > div:first-child {
+        padding-top: 1.6rem;
+    }
 
-        .panel {
-            background: #ffffff;
-            border: 1px solid #d8dde6;
-            border-radius: 14px;
-            padding: 22px;
-            margin-bottom: 18px;
-        }
+    .brand {
+        padding: 0 0.5rem 1.5rem 0.5rem;
+    }
 
-        .section-label {
-            font-family: monospace;
-            font-size: 12px;
-            letter-spacing: 1.6px;
-            color: #8f98aa;
-            margin-bottom: 14px;
-        }
+    .brand-title {
+        font-weight: 900;
+        font-size: 1.65rem;
+        letter-spacing: -0.04em;
+        color: var(--navy);
+        line-height: 1;
+    }
 
-        .metric-card {
-            background: #ffffff;
-            border: 1px solid #d8dde6;
-            border-radius: 12px;
-            padding: 18px 18px 15px 18px;
-            min-height: 112px;
-        }
+    .brand-subtitle {
+        margin-top: 0.45rem;
+        color: #8c96a7;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.79rem;
+        line-height: 1.45;
+    }
 
-        .metric-label {
-            font-size: 13px;
-            color: #7f889a;
-            margin-bottom: 8px;
-        }
+    .page-title {
+        font-size: 2rem;
+        font-weight: 850;
+        letter-spacing: -0.04em;
+        color: var(--navy);
+        margin-bottom: 0.25rem;
+    }
 
-        .metric-value {
-            font-size: 30px;
-            font-weight: 800;
-            color: #202738;
-        }
+    .page-subtitle {
+        color: var(--muted);
+        font-size: 0.95rem;
+        margin-bottom: 1.3rem;
+    }
 
-        .status-pill {
-            display: inline-block;
-            padding: 4px 9px;
-            border-radius: 999px;
-            font-size: 12px;
-            font-weight: 700;
-        }
+    .section-label {
+        color: #8c96a7;
+        font-size: 0.75rem;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        margin-bottom: 0.7rem;
+    }
 
-        div[data-testid="stFileUploader"] {
-            background: #f4f6f9;
-            border: 1px dashed #bcc5d1;
-            border-radius: 12px;
-            padding: 8px;
-        }
+    .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 15px;
+        padding: 1.3rem 1.45rem;
+        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
+        margin-bottom: 1rem;
+    }
 
-        div[data-testid="stDataFrame"] {
-            background: white;
-            border-radius: 10px;
-        }
+    .upload-card {
+        border: 1px dashed #b9c1cd;
+        border-radius: 13px;
+        padding: 1.4rem 1.2rem;
+        background: #fafbfc;
+        text-align: center;
+    }
 
-        .small-note {
-            color: #8992a3;
-            font-size: 13px;
-        }
+    .upload-title {
+        font-weight: 800;
+        color: var(--navy);
+        font-size: 1.05rem;
+        margin-bottom: 0.2rem;
+    }
+
+    .upload-help {
+        color: var(--muted);
+        font-size: 0.85rem;
+    }
+
+    .metric-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 1rem 1.1rem;
+        min-height: 112px;
+    }
+
+    .metric-label {
+        color: var(--muted);
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-weight: 700;
+    }
+
+    .metric-value {
+        color: var(--navy);
+        font-size: 2rem;
+        font-weight: 850;
+        margin-top: 0.4rem;
+        line-height: 1;
+    }
+
+    .metric-note {
+        color: var(--muted);
+        font-size: 0.78rem;
+        margin-top: 0.45rem;
+    }
+
+    .status-pill {
+        display: inline-block;
+        padding: 0.22rem 0.58rem;
+        border-radius: 999px;
+        font-size: 0.76rem;
+        font-weight: 750;
+    }
+
+    div[data-testid="stFileUploader"] section {
+        background: #fafbfc;
+        border: 1px dashed #b9c1cd;
+        border-radius: 12px;
+        padding: 1.2rem;
+    }
+
+    div[data-testid="stFileUploader"] section > div {
+        text-align: center;
+    }
+
+    .stButton > button {
+        border-radius: 9px;
+        font-weight: 750;
+        padding: 0.55rem 1rem;
+        border: 1px solid #9ba3af;
+    }
+
+    .stButton > button[kind="primary"] {
+        background: var(--navy);
+        border-color: var(--navy);
+        color: white;
+    }
+
+    [data-testid="stDataFrame"] {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .info-box {
+        background: var(--blue-soft);
+        border: 1px solid #c9d8ef;
+        border-radius: 10px;
+        padding: 0.85rem 1rem;
+        color: #344054;
+        font-size: 0.88rem;
+    }
+
+    .empty-state {
+        min-height: 230px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--muted);
+        text-align: center;
+    }
+
+    footer {visibility: hidden;}
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 
-# =========================================================
-# Required column names
-# =========================================================
-ATTENDANCE_REQUIRED_COLUMNS = [
-    "工號",
-    "姓名",
-    "考勤日期",
-    "上段應上班時間",
-    "上段實際上班時間",
-    "下段實際下班時間",
+# ============================================================
+# CONSTANTS
+# ============================================================
+ATTENDANCE_COLUMNS = {
+    "employee_id": "工號",
+    "employee_name": "姓名",
+    "department": "部門",
+    "pay_group": "Pay Group",
+    "attendance_date": "考勤日期",
+    "scheduled_start": "上段應上班時間",
+    "actual_start": "上段實際上班時間",
+    "scheduled_end": "下段應下班時間",
+    "actual_end": "下段實際下班時間",
+    "reporting_to": "Reporting To",
+}
+
+STATUS_ORDER = [
+    "Absent",
+    "On Leave",
+    "Forgot Clock-in",
+    "Forgot Clock-out",
+    "Normal",
+    "No Schedule",
 ]
 
-SCHEDULE_COL = "上段應上班時間"
-ACTUAL_START_COL = "上段實際上班時間"
-ACTUAL_END_COL = "下段實際下班時間"
+ABNORMAL_STATUSES = ["Absent", "Forgot Clock-in", "Forgot Clock-out"]
 
 
-# =========================================================
-# Session state
-# =========================================================
-def initialise_state() -> None:
-    defaults = {
-        "attendance_df": None,
-        "leave_df": None,
-        "processed_df": None,
-        "attendance_filename": None,
-        "leave_filename": None,
-        "history": [],
-        "last_error": None,
-    }
-    for key, value in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
+# ============================================================
+# SESSION STATE
+# ============================================================
+if "processed_data" not in st.session_state:
+    st.session_state.processed_data = None
+
+if "leave_data" not in st.session_state:
+    st.session_state.leave_data = None
+
+if "history" not in st.session_state:
+    st.session_state.history = []
+
+if "current_file_names" not in st.session_state:
+    st.session_state.current_file_names = {}
 
 
-initialise_state()
-
-
-# =========================================================
-# Utility functions
-# =========================================================
-def clean_columns(df: pd.DataFrame) -> pd.DataFrame:
-    result = df.copy()
-    result.columns = (
-        result.columns.astype(str)
-        .str.strip()
-        .str.replace("\n", "", regex=False)
-        .str.replace("\r", "", regex=False)
-    )
-    return result
-
-
-def normalise_employee_id(series: pd.Series) -> pd.Series:
-    return series.astype(str).str.strip().str.upper().replace({"NAN": ""})
-
-
-def is_blank(value: object) -> bool:
+# ============================================================
+# HELPERS
+# ============================================================
+def normalize_text(value) -> str:
     if pd.isna(value):
-        return True
-    if isinstance(value, str):
-        return value.strip().lower() in {"", "nan", "nat", "none", "null", "-", "--"}
-    return False
+        return ""
+    return str(value).strip()
 
 
-def has_datetime(value: object) -> bool:
-    """Return True when a cell contains a usable date/time value."""
-    if is_blank(value):
+def clean_employee_id(value) -> str:
+    text = normalize_text(value)
+    if text.endswith(".0"):
+        text = text[:-2]
+    return text.upper()
+
+
+def value_exists(value) -> bool:
+    if pd.isna(value):
         return False
 
-    if isinstance(value, (pd.Timestamp, np.datetime64)):
-        return not pd.isna(value)
+    if isinstance(value, str):
+        return value.strip().lower() not in {"", "nan", "nat", "none", "null", "-", "--", "0"}
 
-    if isinstance(value, (int, float, np.integer, np.floating)):
-        number = float(value)
-        if number == 0:
-            return False
-        # Excel time fraction or Excel serial date.
-        return 0 < number < 1 or number > 20000
+    if isinstance(value, (int, float)):
+        return value != 0
 
-    parsed = pd.to_datetime(str(value).strip(), errors="coerce")
-    return not pd.isna(parsed)
+    return True
 
 
-def combine_date_and_time(date_value: object, time_value: object) -> pd.Timestamp:
-    """Combine Excel date and time cells into one timestamp."""
+def parse_date(value) -> pd.Timestamp:
+    return pd.to_datetime(value, errors="coerce").normalize()
+
+
+def parse_hhmm(value) -> Optional[time]:
+    if pd.isna(value):
+        return None
+
+    if isinstance(value, time):
+        return value
+
+    if isinstance(value, pd.Timestamp):
+        return value.time()
+
+    if isinstance(value, datetime):
+        return value.time()
+
+    if isinstance(value, (int, float)):
+        if pd.isna(value):
+            return None
+
+        numeric = int(value)
+
+        # Excel time fraction
+        if 0 < float(value) < 1:
+            total_seconds = round(float(value) * 86400)
+            hour = (total_seconds // 3600) % 24
+            minute = (total_seconds % 3600) // 60
+            return time(hour, minute)
+
+        # HHMM number such as 700, 1900, 100
+        text = str(numeric).zfill(4)
+    else:
+        text = str(value).strip()
+
+        if re.match(r"^\d{1,4}(\.0)?$", text):
+            text = text.split(".")[0].zfill(4)
+        else:
+            parsed = pd.to_datetime(text, errors="coerce")
+            if not pd.isna(parsed):
+                return parsed.time()
+            return None
+
+    try:
+        hour = int(text[:-2])
+        minute = int(text[-2:])
+        if 0 <= hour <= 23 and 0 <= minute <= 59:
+            return time(hour, minute)
+    except (TypeError, ValueError):
+        pass
+
+    return None
+
+
+def combine_date_time(date_value, time_value) -> pd.Timestamp:
     date_part = pd.to_datetime(date_value, errors="coerce")
-    if pd.isna(date_part):
+    time_part = parse_hhmm(time_value)
+
+    if pd.isna(date_part) or time_part is None:
         return pd.NaT
 
-    date_part = date_part.normalize()
-
-    if pd.isna(time_value) or str(time_value).strip() == "":
-        return date_part
-
-    if isinstance(time_value, pd.Timestamp):
-        return date_part + pd.Timedelta(
-            hours=time_value.hour,
-            minutes=time_value.minute,
-            seconds=time_value.second,
-        )
-
-    if isinstance(time_value, (int, float, np.integer, np.floating)):
-        number = float(time_value)
-        if 0 <= number < 1:
-            return date_part + pd.to_timedelta(number, unit="D")
-
-    parsed_time = pd.to_datetime(str(time_value), errors="coerce")
-    if pd.isna(parsed_time):
-        return date_part
-
-    return date_part + pd.Timedelta(
-        hours=parsed_time.hour,
-        minutes=parsed_time.minute,
-        seconds=parsed_time.second,
-    )
+    return pd.Timestamp.combine(date_part.date(), time_part)
 
 
-def detect_attendance_sheet(file_bytes: bytes) -> Tuple[str, pd.DataFrame]:
-    excel = pd.ExcelFile(BytesIO(file_bytes))
+def find_attendance_sheet(file_bytes: bytes) -> Tuple[str, pd.DataFrame]:
+    excel = pd.ExcelFile(io.BytesIO(file_bytes))
 
-    for sheet_name in excel.sheet_names:
-        candidate = clean_columns(pd.read_excel(BytesIO(file_bytes), sheet_name=sheet_name))
-        if all(column in candidate.columns for column in ATTENDANCE_REQUIRED_COLUMNS):
-            return sheet_name, candidate
+    for sheet in excel.sheet_names:
+        sample = pd.read_excel(io.BytesIO(file_bytes), sheet_name=sheet, nrows=5)
+        sample.columns = [str(col).strip() for col in sample.columns]
+
+        required = {
+            ATTENDANCE_COLUMNS["employee_id"],
+            ATTENDANCE_COLUMNS["scheduled_start"],
+            ATTENDANCE_COLUMNS["actual_start"],
+            ATTENDANCE_COLUMNS["actual_end"],
+        }
+
+        if required.issubset(set(sample.columns)):
+            full_df = pd.read_excel(io.BytesIO(file_bytes), sheet_name=sheet)
+            full_df.columns = [str(col).strip() for col in full_df.columns]
+            return sheet, full_df
 
     raise ValueError(
-        "No worksheet contains all required attendance columns: "
-        + ", ".join(ATTENDANCE_REQUIRED_COLUMNS)
+        "No attendance worksheet was found. The file must contain 工號, "
+        "上段應上班時間, 上段實際上班時間 and 下段實際下班時間."
     )
 
 
-def read_leave_workbook(file_bytes: bytes) -> pd.DataFrame:
-    excel = pd.ExcelFile(BytesIO(file_bytes))
-    frames: List[pd.DataFrame] = []
+def standardize_leave_sheet(df: pd.DataFrame, source_sheet: str) -> pd.DataFrame:
+    original_columns = {str(col).strip(): col for col in df.columns}
+    lowered = {str(col).strip().lower(): col for col in df.columns}
 
-    for sheet_name in excel.sheet_names:
-        sheet = clean_columns(pd.read_excel(BytesIO(file_bytes), sheet_name=sheet_name))
-        lower_to_original = {str(column).lower(): column for column in sheet.columns}
+    def get_column(*names):
+        for name in names:
+            if name in original_columns:
+                return original_columns[name]
+            if name.lower() in lowered:
+                return lowered[name.lower()]
+        return None
 
-        employee_column = lower_to_original.get("empid")
-        start_date_column = lower_to_original.get("startdate")
-        end_date_column = lower_to_original.get("enddate")
+    employee_id_col = get_column("empid", "Empid", "工號")
+    employee_name_col = get_column("empname", "姓名")
+    department_col = get_column("departmentname", "部門")
+    leave_type_col = get_column("leavetype", "Leave Type")
+    start_date_col = get_column("startdate")
+    start_time_col = get_column("starttime")
+    end_date_col = get_column("enddate")
+    end_time_col = get_column("endtime")
+    reason_col = get_column("reason")
+    request_no_col = get_column("reqno")
 
-        if not employee_column or not start_date_column or not end_date_column:
-            continue
+    if employee_id_col is None or start_date_col is None or end_date_col is None:
+        return pd.DataFrame()
 
-        start_time_column = lower_to_original.get("starttime")
-        end_time_column = lower_to_original.get("endtime")
-        leave_type_column = lower_to_original.get("leavetype")
-        employee_name_column = lower_to_original.get("empname")
-        department_column = lower_to_original.get("departmentname")
-        request_column = lower_to_original.get("reqno")
+    result = pd.DataFrame()
+    result["Employee ID"] = df[employee_id_col].map(clean_employee_id)
+    result["Employee Name"] = (
+        df[employee_name_col].map(normalize_text)
+        if employee_name_col is not None else ""
+    )
+    result["Department"] = (
+        df[department_col].map(normalize_text)
+        if department_col is not None else ""
+    )
+    result["Leave Type"] = (
+        df[leave_type_col].map(normalize_text)
+        if leave_type_col is not None else source_sheet
+    )
+    result["Leave Type"] = result["Leave Type"].replace("", source_sheet)
+    result["Reason"] = (
+        df[reason_col].map(normalize_text)
+        if reason_col is not None else ""
+    )
+    result["Request No."] = (
+        df[request_no_col].map(normalize_text)
+        if request_no_col is not None else ""
+    )
+    result["Source Sheet"] = source_sheet
 
-        normalised = pd.DataFrame()
-        normalised["工號"] = normalise_employee_id(sheet[employee_column])
-        normalised["姓名"] = sheet[employee_name_column] if employee_name_column else ""
-        normalised["部門"] = sheet[department_column] if department_column else ""
-        normalised["請假類型"] = (
-            sheet[leave_type_column].astype(str)
-            if leave_type_column
-            else ("Annual Leave" if sheet_name.strip().upper() == "AL" else sheet_name)
+    result["Leave Start"] = [
+        combine_date_time(date_value, time_value)
+        for date_value, time_value in zip(
+            df[start_date_col],
+            df[start_time_col] if start_time_col is not None else [None] * len(df),
         )
-        normalised["申請編號"] = sheet[request_column] if request_column else ""
-        normalised["來源工作表"] = sheet_name
+    ]
 
-        start_times = sheet[start_time_column] if start_time_column else pd.Series([None] * len(sheet))
-        end_times = sheet[end_time_column] if end_time_column else pd.Series([None] * len(sheet))
-
-        normalised["請假開始"] = [
-            combine_date_and_time(date_value, time_value)
-            for date_value, time_value in zip(sheet[start_date_column], start_times)
-        ]
-        normalised["請假結束"] = [
-            combine_date_and_time(date_value, time_value)
-            for date_value, time_value in zip(sheet[end_date_column], end_times)
-        ]
-
-        # When end date/time is missing or not after start, use end of that day.
-        invalid_end = normalised["請假結束"].isna() | (
-            normalised["請假結束"] <= normalised["請假開始"]
+    result["Leave End"] = [
+        combine_date_time(date_value, time_value)
+        for date_value, time_value in zip(
+            df[end_date_col],
+            df[end_time_col] if end_time_col is not None else [None] * len(df),
         )
-        normalised.loc[invalid_end, "請假結束"] = (
-            normalised.loc[invalid_end, "請假開始"].dt.normalize()
-            + pd.Timedelta(days=1)
-            - pd.Timedelta(seconds=1)
-        )
+    ]
 
-        # Preserve approval fields when present.
-        approval_columns = [
-            column
-            for column in sheet.columns
-            if str(column).lower().startswith("isagree")
-        ]
-        if approval_columns:
-            normalised["核准狀態"] = sheet[approval_columns].apply(
-                lambda row: " / ".join(
-                    [str(value) for value in row.tolist() if not pd.isna(value)]
-                ),
-                axis=1,
-            )
-        else:
-            normalised["核准狀態"] = ""
+    # When time is absent, treat the leave as a full-day period.
+    start_dates = pd.to_datetime(df[start_date_col], errors="coerce")
+    end_dates = pd.to_datetime(df[end_date_col], errors="coerce")
 
-        frames.append(normalised)
+    missing_start_time = result["Leave Start"].isna() & start_dates.notna()
+    missing_end_time = result["Leave End"].isna() & end_dates.notna()
 
-    if not frames:
-        raise ValueError(
-            "No valid leave worksheet was found. The workbook needs Empid, startdate and enddate columns."
-        )
+    result.loc[missing_start_time, "Leave Start"] = start_dates[missing_start_time].dt.normalize()
+    result.loc[missing_end_time, "Leave End"] = (
+        end_dates[missing_end_time].dt.normalize() + pd.Timedelta(days=1)
+    )
 
-    result = pd.concat(frames, ignore_index=True)
-    result = result[result["工號"] != ""].copy()
+    result = result[
+        result["Employee ID"].ne("")
+        & result["Leave Start"].notna()
+        & result["Leave End"].notna()
+    ].copy()
+
     return result
 
 
-def classify_attendance(row: pd.Series) -> Tuple[str, str]:
-    scheduled = has_datetime(row.get(SCHEDULE_COL))
-    actual_start = has_datetime(row.get(ACTUAL_START_COL))
-    actual_end = has_datetime(row.get(ACTUAL_END_COL))
+def read_leave_file(file_bytes: bytes) -> pd.DataFrame:
+    excel = pd.ExcelFile(io.BytesIO(file_bytes))
+    frames = []
 
-    if not scheduled:
-        return "No Schedule", "No scheduled start time"
+    for sheet in excel.sheet_names:
+        df = pd.read_excel(io.BytesIO(file_bytes), sheet_name=sheet)
+        df.columns = [str(col).strip() for col in df.columns]
+        standardized = standardize_leave_sheet(df, sheet)
 
-    if not actual_start and not actual_end:
-        return "Absent", "Scheduled, but both actual start and actual end are blank"
+        if not standardized.empty:
+            frames.append(standardized)
 
-    if not actual_start and actual_end:
-        return "Forgot Clock-in", "Actual end exists, but actual start is blank"
+    if not frames:
+        return pd.DataFrame(
+            columns=[
+                "Employee ID", "Employee Name", "Department", "Leave Type",
+                "Reason", "Request No.", "Source Sheet", "Leave Start", "Leave End"
+            ]
+        )
 
-    if actual_start and not actual_end:
-        return "Forgot Clock-out", "Actual start exists, but actual end is blank"
-
-    return "Normal", "Both actual start and actual end are present"
-
-
-def build_schedule_window(row: pd.Series) -> Tuple[pd.Timestamp, pd.Timestamp]:
-    start = pd.to_datetime(row.get(SCHEDULE_COL), errors="coerce")
-
-    possible_end_columns = [
-        "下段應下班時間",
-        "上段應下班時間",
-        SCHEDULE_COL,
-    ]
-    end = pd.NaT
-    for column in possible_end_columns:
-        if column in row.index:
-            candidate = pd.to_datetime(row.get(column), errors="coerce")
-            if not pd.isna(candidate):
-                end = candidate
-                break
-
-    if pd.isna(start):
-        return pd.NaT, pd.NaT
-
-    if pd.isna(end) or end <= start:
-        end = start + pd.Timedelta(hours=12)
-
-    return start, end
+    return pd.concat(frames, ignore_index=True)
 
 
-def find_overlapping_leave(
+def create_attendance_shift(row: pd.Series) -> Tuple[pd.Timestamp, pd.Timestamp]:
+    scheduled_start = pd.to_datetime(
+        row.get(ATTENDANCE_COLUMNS["scheduled_start"]), errors="coerce"
+    )
+
+    scheduled_end = pd.to_datetime(
+        row.get(ATTENDANCE_COLUMNS["scheduled_end"]), errors="coerce"
+    )
+
+    # Fallback: if 下段應下班時間 does not exist, use 上段應下班時間.
+    if pd.isna(scheduled_end):
+        scheduled_end = pd.to_datetime(
+            row.get("上段應下班時間"), errors="coerce"
+        )
+
+    # Final fallback: use attendance date + 24 hours.
+    if pd.isna(scheduled_end) and not pd.isna(scheduled_start):
+        scheduled_end = scheduled_start + pd.Timedelta(hours=24)
+
+    if (
+        not pd.isna(scheduled_start)
+        and not pd.isna(scheduled_end)
+        and scheduled_end <= scheduled_start
+    ):
+        scheduled_end += pd.Timedelta(days=1)
+
+    return scheduled_start, scheduled_end
+
+
+def match_leave(
     employee_id: str,
-    schedule_start: pd.Timestamp,
-    schedule_end: pd.Timestamp,
-    leave_df: Optional[pd.DataFrame],
+    shift_start: pd.Timestamp,
+    shift_end: pd.Timestamp,
+    leave_df: pd.DataFrame,
 ) -> Optional[pd.Series]:
-    if leave_df is None or leave_df.empty or pd.isna(schedule_start) or pd.isna(schedule_end):
+    if leave_df.empty or not employee_id or pd.isna(shift_start) or pd.isna(shift_end):
         return None
 
-    employee_leave = leave_df[leave_df["工號"] == employee_id]
-    if employee_leave.empty:
-        return None
-
-    overlap = employee_leave[
-        (employee_leave["請假開始"] < schedule_end)
-        & (employee_leave["請假結束"] > schedule_start)
+    matches = leave_df[
+        (leave_df["Employee ID"] == employee_id)
+        & (leave_df["Leave Start"] < shift_end)
+        & (leave_df["Leave End"] > shift_start)
     ]
 
-    if overlap.empty:
+    if matches.empty:
         return None
 
-    return overlap.sort_values("請假開始").iloc[0]
+    return matches.sort_values("Leave Start").iloc[0]
 
 
-def process_attendance(
-    attendance_df: pd.DataFrame,
-    leave_df: Optional[pd.DataFrame],
-) -> pd.DataFrame:
-    result = clean_columns(attendance_df)
+def process_attendance(attendance_df: pd.DataFrame, leave_df: pd.DataFrame) -> pd.DataFrame:
+    required_columns = [
+        ATTENDANCE_COLUMNS["employee_id"],
+        ATTENDANCE_COLUMNS["scheduled_start"],
+        ATTENDANCE_COLUMNS["actual_start"],
+        ATTENDANCE_COLUMNS["actual_end"],
+    ]
 
-    missing = [column for column in ATTENDANCE_REQUIRED_COLUMNS if column not in result.columns]
+    missing = [col for col in required_columns if col not in attendance_df.columns]
     if missing:
         raise ValueError("Missing attendance columns: " + ", ".join(missing))
 
-    result["工號"] = normalise_employee_id(result["工號"])
-    result["考勤日期"] = pd.to_datetime(result["考勤日期"], errors="coerce")
+    result = attendance_df.copy()
+    result["Employee ID Clean"] = result[
+        ATTENDANCE_COLUMNS["employee_id"]
+    ].map(clean_employee_id)
 
-    classifications = result.apply(classify_attendance, axis=1)
-    result["原始出勤判斷"] = classifications.apply(lambda value: value[0])
-    result["判斷說明"] = classifications.apply(lambda value: value[1])
-
-    final_statuses: List[str] = []
-    leave_types: List[str] = []
-    leave_starts: List[pd.Timestamp] = []
-    leave_ends: List[pd.Timestamp] = []
-    leave_requests: List[str] = []
+    statuses = []
+    leave_types = []
+    leave_reasons = []
+    leave_starts = []
+    leave_ends = []
+    shift_starts = []
+    shift_ends = []
 
     for _, row in result.iterrows():
-        original_status = row["原始出勤判斷"]
-        employee_id = row["工號"]
-        schedule_start, schedule_end = build_schedule_window(row)
-        overlapping_leave = find_overlapping_leave(
-            employee_id,
-            schedule_start,
-            schedule_end,
+        scheduled_exists = value_exists(row.get(ATTENDANCE_COLUMNS["scheduled_start"]))
+        actual_start_exists = value_exists(row.get(ATTENDANCE_COLUMNS["actual_start"]))
+        actual_end_exists = value_exists(row.get(ATTENDANCE_COLUMNS["actual_end"]))
+
+        shift_start, shift_end = create_attendance_shift(row)
+        shift_starts.append(shift_start)
+        shift_ends.append(shift_end)
+
+        leave_match = match_leave(
+            row["Employee ID Clean"],
+            shift_start,
+            shift_end,
             leave_df,
         )
 
-        if overlapping_leave is not None and original_status in {
-            "Absent",
-            "Forgot Clock-in",
-            "Forgot Clock-out",
-        }:
-            final_status = "On Leave"
-            leave_type = str(overlapping_leave.get("請假類型", "Leave"))
-            leave_start = overlapping_leave.get("請假開始", pd.NaT)
-            leave_end = overlapping_leave.get("請假結束", pd.NaT)
-            leave_request = str(overlapping_leave.get("申請編號", ""))
-        else:
-            final_status = original_status
-            leave_type = ""
-            leave_start = pd.NaT
-            leave_end = pd.NaT
-            leave_request = ""
+        leave_type = ""
+        leave_reason = ""
+        leave_start = pd.NaT
+        leave_end = pd.NaT
 
-        final_statuses.append(final_status)
+        if leave_match is not None:
+            leave_type = leave_match["Leave Type"]
+            leave_reason = leave_match["Reason"]
+            leave_start = leave_match["Leave Start"]
+            leave_end = leave_match["Leave End"]
+
+        # Exact user rule:
+        # Scheduled start exists + both actual start and actual end missing = absent,
+        # unless a corresponding leave period overlaps the employee's shift.
+        if not scheduled_exists:
+            status = "No Schedule"
+        elif not actual_start_exists and not actual_end_exists:
+            status = "On Leave" if leave_match is not None else "Absent"
+        elif not actual_start_exists and actual_end_exists:
+            status = "Forgot Clock-in"
+        elif actual_start_exists and not actual_end_exists:
+            status = "Forgot Clock-out"
+        else:
+            status = "Normal"
+
+        statuses.append(status)
         leave_types.append(leave_type)
+        leave_reasons.append(leave_reason)
         leave_starts.append(leave_start)
         leave_ends.append(leave_end)
-        leave_requests.append(leave_request)
 
-    result["最終出勤判斷"] = final_statuses
-    result["請假類型"] = leave_types
-    result["請假開始"] = leave_starts
-    result["請假結束"] = leave_ends
-    result["請假申請編號"] = leave_requests
+    result["Shift Start"] = shift_starts
+    result["Shift End"] = shift_ends
+    result["Attendance Status"] = statuses
+    result["Matched Leave Type"] = leave_types
+    result["Matched Leave Start"] = leave_starts
+    result["Matched Leave End"] = leave_ends
+    result["Leave Reason"] = leave_reasons
 
     return result
 
 
-def dataframe_to_excel(
-    processed_df: pd.DataFrame,
-    leave_df: Optional[pd.DataFrame],
-) -> bytes:
-    output = BytesIO()
+def calculate_week_label(df: pd.DataFrame) -> str:
+    date_col = ATTENDANCE_COLUMNS["attendance_date"]
 
-    abnormal = processed_df[
-        processed_df["最終出勤判斷"].isin(
-            ["Absent", "Forgot Clock-in", "Forgot Clock-out"]
-        )
-    ].copy()
+    if date_col in df.columns:
+        dates = pd.to_datetime(df[date_col], errors="coerce").dropna()
+    else:
+        dates = pd.to_datetime(df["Shift Start"], errors="coerce").dropna()
+
+    if dates.empty:
+        return datetime.now().strftime("%d %b %Y")
+
+    return f"{dates.min():%d %b %Y} – {dates.max():%d %b %Y}"
+
+
+def build_excel_download(
+    processed_df: pd.DataFrame,
+    leave_df: pd.DataFrame,
+) -> bytes:
+    output = io.BytesIO()
 
     summary = (
-        processed_df["最終出勤判斷"]
-        .value_counts(dropna=False)
+        processed_df["Attendance Status"]
+        .value_counts()
+        .reindex(STATUS_ORDER, fill_value=0)
         .rename_axis("Status")
-        .reset_index(name="Count")
+        .reset_index(name="Records")
     )
 
-    with pd.ExcelWriter(
-        output,
-        engine="openpyxl",
-        datetime_format="yyyy-mm-dd hh:mm:ss",
-    ) as writer:
-        processed_df.to_excel(writer, sheet_name="All Results", index=False)
-        abnormal.to_excel(writer, sheet_name="Exceptions", index=False)
+    with pd.ExcelWriter(output, engine="openpyxl", datetime_format="yyyy-mm-dd hh:mm:ss") as writer:
+        processed_df.to_excel(writer, sheet_name="Attendance Analysis", index=False)
+        processed_df[
+            processed_df["Attendance Status"].isin(ABNORMAL_STATUSES)
+        ].to_excel(writer, sheet_name="Exceptions", index=False)
+        processed_df[
+            processed_df["Attendance Status"] == "Absent"
+        ].to_excel(writer, sheet_name="Absentees", index=False)
+        leave_df.to_excel(writer, sheet_name="Leave Data", index=False)
         summary.to_excel(writer, sheet_name="Summary", index=False)
-        if leave_df is not None:
-            leave_df.to_excel(writer, sheet_name="Leave Data", index=False)
 
-        for worksheet in writer.book.worksheets:
-            worksheet.freeze_panes = "A2"
-            worksheet.auto_filter.ref = worksheet.dimensions
-            for column_cells in worksheet.columns:
-                width = min(
-                    max(len(str(cell.value)) if cell.value is not None else 0 for cell in column_cells)
-                    + 2,
-                    35,
-                )
-                worksheet.column_dimensions[column_cells[0].column_letter].width = max(width, 10)
-
-    output.seek(0)
     return output.getvalue()
 
 
-def get_week_label(processed_df: pd.DataFrame) -> str:
-    dates = processed_df["考勤日期"].dropna()
-    if dates.empty:
-        return "Unknown period"
-    start = dates.min().strftime("%d %b %Y")
-    end = dates.max().strftime("%d %b %Y")
-    return f"{start} – {end}"
-
-
-def status_colour(status: str) -> str:
-    return {
-        "Absent": "background-color: #ffd6d6; color: #8b1e1e; font-weight: 700;",
-        "Forgot Clock-in": "background-color: #fff0c2; color: #7a5300; font-weight: 700;",
-        "Forgot Clock-out": "background-color: #fff0c2; color: #7a5300; font-weight: 700;",
-        "On Leave": "background-color: #dfe8ff; color: #274f9b; font-weight: 700;",
-        "Normal": "background-color: #dff2e4; color: #246b38; font-weight: 700;",
-        "No Schedule": "background-color: #eceff4; color: #5d6575; font-weight: 700;",
-    }.get(status, "")
-
-
-def render_metric(label: str, value: int) -> None:
+def display_metric(label: str, value: int, note: str = ""):
     st.markdown(
         f"""
         <div class="metric-card">
             <div class="metric-label">{label}</div>
             <div class="metric-value">{value:,}</div>
+            <div class="metric-note">{note}</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
 
-# =========================================================
-# Sidebar
-# =========================================================
-with st.sidebar:
-    st.markdown('<div class="brand-title">MUSTER</div>', unsafe_allow_html=True)
+def apply_filters(df: pd.DataFrame, key_prefix: str) -> pd.DataFrame:
+    filtered = df.copy()
+
+    c1, c2, c3, c4 = st.columns(4)
+
+    with c1:
+        status_options = sorted(filtered["Attendance Status"].dropna().unique())
+        selected_statuses = st.multiselect(
+            "Status",
+            status_options,
+            default=status_options,
+            key=f"{key_prefix}_status",
+        )
+
+    department_col = ATTENDANCE_COLUMNS["department"]
+    with c2:
+        if department_col in filtered.columns:
+            department_options = sorted(
+                filtered[department_col].dropna().astype(str).unique()
+            )
+            selected_departments = st.multiselect(
+                "Department",
+                department_options,
+                default=[],
+                key=f"{key_prefix}_department",
+            )
+        else:
+            selected_departments = []
+
+    manager_col = ATTENDANCE_COLUMNS["reporting_to"]
+    with c3:
+        if manager_col in filtered.columns:
+            manager_options = sorted(
+                filtered[manager_col].dropna().astype(str).unique()
+            )
+            selected_managers = st.multiselect(
+                "Reporting To",
+                manager_options,
+                default=[],
+                key=f"{key_prefix}_manager",
+            )
+        else:
+            selected_managers = []
+
+    with c4:
+        search_text = st.text_input(
+            "Employee search",
+            placeholder="ID or employee name",
+            key=f"{key_prefix}_search",
+        ).strip()
+
+    if selected_statuses:
+        filtered = filtered[filtered["Attendance Status"].isin(selected_statuses)]
+
+    if selected_departments and department_col in filtered.columns:
+        filtered = filtered[filtered[department_col].astype(str).isin(selected_departments)]
+
+    if selected_managers and manager_col in filtered.columns:
+        filtered = filtered[filtered[manager_col].astype(str).isin(selected_managers)]
+
+    if search_text:
+        employee_id_col = ATTENDANCE_COLUMNS["employee_id"]
+        employee_name_col = ATTENDANCE_COLUMNS["employee_name"]
+
+        id_match = (
+            filtered[employee_id_col].astype(str).str.contains(
+                search_text, case=False, na=False
+            )
+            if employee_id_col in filtered.columns else False
+        )
+        name_match = (
+            filtered[employee_name_col].astype(str).str.contains(
+                search_text, case=False, na=False
+            )
+            if employee_name_col in filtered.columns else False
+        )
+
+        filtered = filtered[id_match | name_match]
+
+    return filtered
+
+
+# ============================================================
+# SIDEBAR NAVIGATION
+# ============================================================
+st.sidebar.markdown(
+    """
+    <div class="brand">
+        <div class="brand-title">INGRASYS HR</div>
+        <div class="brand-subtitle">Singapore attendance<br>and leave analysis</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+page = st.sidebar.radio(
+    "Navigation",
+    [
+        "Upload",
+        "Attendance & Absenteeism",
+        "Dashboard",
+        "History",
+    ],
+    label_visibility="collapsed",
+)
+
+st.sidebar.markdown("---")
+if st.session_state.processed_data is not None:
+    current_week = calculate_week_label(st.session_state.processed_data)
+    st.sidebar.caption("Current processed period")
+    st.sidebar.markdown(f"**{current_week}**")
+else:
+    st.sidebar.caption("Upload attendance and leave files to begin.")
+
+
+# ============================================================
+# PAGE 1 — UPLOAD
+# ============================================================
+if page == "Upload":
+    st.markdown('<div class="page-title">Upload</div>', unsafe_allow_html=True)
     st.markdown(
-        '<div class="brand-subtitle">attendance & leave, at a glance</div>',
+        '<div class="page-subtitle">Add the weekly attendance and leave exports for Ingrasys Singapore.</div>',
         unsafe_allow_html=True,
     )
 
-    page = st.radio(
-        "Navigation",
-        ["Upload", "Attendance & Absenteeism", "Leave Data", "History"],
-        label_visibility="collapsed",
-    )
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="section-label">Add this week’s files</div>', unsafe_allow_html=True)
 
-    st.markdown("---")
-    st.caption("Files are processed only in the current Streamlit session unless you add external storage.")
+    col1, col2 = st.columns(2, gap="large")
 
-
-# =========================================================
-# Upload page
-# =========================================================
-if page == "Upload":
-    st.markdown('<div class="page-title">Upload</div>', unsafe_allow_html=True)
-
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
-    st.markdown('<div class="section-label">ADD THIS WEEK\'S FILES</div>', unsafe_allow_html=True)
-
-    left, right = st.columns(2, gap="large")
-
-    with left:
+    with col1:
+        st.markdown(
+            """
+            <div class="upload-card">
+                <div class="upload-title">ATTENDANCE FILE</div>
+                <div class="upload-help">Excel export containing scheduled and actual punch times</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         attendance_file = st.file_uploader(
-            "ATTENDANCE FILE",
-            type=["xlsx", "xlsm"],
+            "Attendance file",
+            type=["xlsx", "xls"],
+            label_visibility="collapsed",
             key="attendance_upload",
-            help="Upload the weekly attendance export.",
         )
 
-    with right:
-        leave_file = st.file_uploader(
-            "LEAVE FILE",
-            type=["xlsx", "xlsm"],
-            key="leave_upload",
-            help="Optional, but recommended. Upload the leave export containing AL and other leave sheets.",
+    with col2:
+        st.markdown(
+            """
+            <div class="upload-card">
+                <div class="upload-title">LEAVE FILE</div>
+                <div class="upload-help">Excel export containing Annual Leave and Other Leave sheets</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
+        leave_file = st.file_uploader(
+            "Leave file",
+            type=["xlsx", "xls"],
+            label_visibility="collapsed",
+            key="leave_upload",
+        )
+
+    st.markdown(
+        """
+        <div class="info-box">
+        An employee is marked <b>Absent</b> when a scheduled start exists and both
+        the actual start and actual end are blank. When an overlapping leave record
+        exists for the same employee, the record becomes <b>On Leave</b> instead.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     process_clicked = st.button(
         "Process files",
         type="primary",
-        disabled=attendance_file is None,
+        disabled=attendance_file is None or leave_file is None,
     )
 
     if process_clicked:
         try:
-            attendance_bytes = attendance_file.getvalue()
-            _, attendance_df = detect_attendance_sheet(attendance_bytes)
+            with st.spinner("Reading and matching attendance with leave records..."):
+                attendance_bytes = attendance_file.getvalue()
+                leave_bytes = leave_file.getvalue()
 
-            leave_df = None
-            if leave_file is not None:
-                leave_df = read_leave_workbook(leave_file.getvalue())
+                attendance_sheet, attendance_df = find_attendance_sheet(attendance_bytes)
+                leave_df = read_leave_file(leave_bytes)
+                processed_df = process_attendance(attendance_df, leave_df)
 
-            processed_df = process_attendance(attendance_df, leave_df)
+                week_label = calculate_week_label(processed_df)
 
-            st.session_state.attendance_df = attendance_df
-            st.session_state.leave_df = leave_df
-            st.session_state.processed_df = processed_df
-            st.session_state.attendance_filename = attendance_file.name
-            st.session_state.leave_filename = leave_file.name if leave_file else None
-            st.session_state.last_error = None
+                st.session_state.processed_data = processed_df
+                st.session_state.leave_data = leave_df
+                st.session_state.current_file_names = {
+                    "attendance": attendance_file.name,
+                    "leave": leave_file.name,
+                    "attendance_sheet": attendance_sheet,
+                }
 
-            week_label = get_week_label(processed_df)
-            history_entry = {
-                "week": week_label,
-                "attendance_file": attendance_file.name,
-                "leave_file": leave_file.name if leave_file else "Not uploaded",
-                "rows": len(processed_df),
-                "absent": int((processed_df["最終出勤判斷"] == "Absent").sum()),
-                "forgot_punch": int(
-                    processed_df["最終出勤判斷"]
-                    .isin(["Forgot Clock-in", "Forgot Clock-out"])
-                    .sum()
-                ),
-            }
-            st.session_state.history = [
-                entry for entry in st.session_state.history if entry["week"] != week_label
-            ]
-            st.session_state.history.insert(0, history_entry)
+                history_entry = {
+                    "processed_at": datetime.now(),
+                    "week": week_label,
+                    "attendance_file": attendance_file.name,
+                    "leave_file": leave_file.name,
+                    "rows": len(processed_df),
+                    "absent": int((processed_df["Attendance Status"] == "Absent").sum()),
+                    "on_leave": int((processed_df["Attendance Status"] == "On Leave").sum()),
+                    "forgot_punch": int(
+                        processed_df["Attendance Status"].isin(
+                            ["Forgot Clock-in", "Forgot Clock-out"]
+                        ).sum()
+                    ),
+                    "data": processed_df.copy(),
+                    "leave_data": leave_df.copy(),
+                }
 
-            st.success(f"Processed successfully: {week_label}")
+                # Replace the current week's entry if processed again.
+                st.session_state.history = [
+                    item for item in st.session_state.history
+                    if item["week"] != week_label
+                ]
+                st.session_state.history.insert(0, history_entry)
+
+            st.success(
+                f"Files processed successfully for {week_label}. "
+                f"{len(processed_df):,} attendance records were analysed."
+            )
+
+            c1, c2, c3, c4 = st.columns(4)
+            with c1:
+                display_metric(
+                    "Attendance rows",
+                    len(processed_df),
+                    f"Sheet: {attendance_sheet}",
+                )
+            with c2:
+                display_metric(
+                    "Absent",
+                    int((processed_df["Attendance Status"] == "Absent").sum()),
+                    "No punch and no matching leave",
+                )
+            with c3:
+                display_metric(
+                    "On leave",
+                    int((processed_df["Attendance Status"] == "On Leave").sum()),
+                    "Matched by employee and time",
+                )
+            with c4:
+                display_metric(
+                    "Forgot punch",
+                    int(
+                        processed_df["Attendance Status"].isin(
+                            ["Forgot Clock-in", "Forgot Clock-out"]
+                        ).sum()
+                    ),
+                    "Only one punch is present",
+                )
 
         except Exception as exc:
-            st.session_state.last_error = str(exc)
             st.error(f"Could not process the files: {exc}")
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
-    st.markdown('<div class="section-label">CURRENT SESSION</div>', unsafe_allow_html=True)
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="section-label">Saved weeks</div>', unsafe_allow_html=True)
 
-    if st.session_state.processed_df is None:
-        st.info("No files processed yet. Upload the attendance file above to begin.")
+    if not st.session_state.history:
+        st.markdown(
+            """
+            <div class="empty-state">
+                <div>
+                    <b>No weeks processed yet.</b><br>
+                    Add the first pair of files above.
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
     else:
-        processed_df = st.session_state.processed_df
-        week_label = get_week_label(processed_df)
-        st.write(f"**Period:** {week_label}")
-        st.write(f"**Attendance file:** {st.session_state.attendance_filename}")
-        st.write(f"**Leave file:** {st.session_state.leave_filename or 'Not uploaded'}")
-        st.write(f"**Rows processed:** {len(processed_df):,}")
+        history_preview = pd.DataFrame(
+            [
+                {
+                    "Week": item["week"],
+                    "Processed": item["processed_at"].strftime("%Y-%m-%d %H:%M"),
+                    "Rows": item["rows"],
+                    "Absent": item["absent"],
+                    "On Leave": item["on_leave"],
+                    "Forgot Punch": item["forgot_punch"],
+                }
+                for item in st.session_state.history
+            ]
+        )
+        st.dataframe(history_preview, use_container_width=True, hide_index=True)
 
-        excel_bytes = dataframe_to_excel(processed_df, st.session_state.leave_df)
-        st.download_button(
-            "Download analysis Excel",
-            data=excel_bytes,
-            file_name="Attendance_Analysis_Result.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    st.caption(
+        "History is stored only in the current Streamlit session. "
+        "For permanent company-wide history, connect the app to a database."
+    )
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+# ============================================================
+# PAGE 2 — ATTENDANCE & ABSENTEEISM
+# ============================================================
+elif page == "Attendance & Absenteeism":
+    st.markdown(
+        '<div class="page-title">Attendance & Absenteeism</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div class="page-subtitle">Combined attendance and leave results with exception-focused filtering.</div>',
+        unsafe_allow_html=True,
+    )
+
+    if st.session_state.processed_data is None:
+        st.warning("Upload and process the attendance and leave files first.")
+        st.stop()
+
+    processed_df = st.session_state.processed_data
+    filtered_df = apply_filters(processed_df, "attendance")
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        display_metric(
+            "Absent",
+            int((filtered_df["Attendance Status"] == "Absent").sum()),
+            "No matching leave",
+        )
+    with c2:
+        display_metric(
+            "On Leave",
+            int((filtered_df["Attendance Status"] == "On Leave").sum()),
+            "Excused absence",
+        )
+    with c3:
+        display_metric(
+            "Forgot Clock-in",
+            int((filtered_df["Attendance Status"] == "Forgot Clock-in").sum()),
+            "End punch only",
+        )
+    with c4:
+        display_metric(
+            "Forgot Clock-out",
+            int((filtered_df["Attendance Status"] == "Forgot Clock-out").sum()),
+            "Start punch only",
+        )
+
+    display_columns = [
+        ATTENDANCE_COLUMNS["employee_id"],
+        ATTENDANCE_COLUMNS["employee_name"],
+        ATTENDANCE_COLUMNS["department"],
+        ATTENDANCE_COLUMNS["attendance_date"],
+        ATTENDANCE_COLUMNS["scheduled_start"],
+        ATTENDANCE_COLUMNS["actual_start"],
+        ATTENDANCE_COLUMNS["actual_end"],
+        "Attendance Status",
+        "Matched Leave Type",
+        "Matched Leave Start",
+        "Matched Leave End",
+        "Leave Reason",
+        ATTENDANCE_COLUMNS["reporting_to"],
+    ]
+    display_columns = [col for col in display_columns if col in filtered_df.columns]
+
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="section-label">Attendance records · {len(filtered_df):,} results</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.dataframe(
+        filtered_df[display_columns],
+        use_container_width=True,
+        hide_index=True,
+        height=540,
+        column_config={
+            "Attendance Status": st.column_config.TextColumn("Status"),
+            "Matched Leave Type": st.column_config.TextColumn("Leave Type"),
+            "Leave Reason": st.column_config.TextColumn("Leave Reason", width="large"),
+        },
+    )
+
+    excel_bytes = build_excel_download(
+        st.session_state.processed_data,
+        st.session_state.leave_data,
+    )
+    st.download_button(
+        "Download analysis Excel",
+        data=excel_bytes,
+        file_name="Ingrasys_HR_Attendance_Analysis.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+# ============================================================
+# PAGE 3 — DASHBOARD
+# ============================================================
+elif page == "Dashboard":
+    st.markdown('<div class="page-title">Dashboard</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="page-subtitle">Weekly overview of attendance, absence, leave and missed punches.</div>',
+        unsafe_allow_html=True,
+    )
+
+    if st.session_state.processed_data is None:
+        st.warning("Upload and process the attendance and leave files first.")
+        st.stop()
+
+    processed_df = st.session_state.processed_data.copy()
+
+    total = len(processed_df)
+    absent = int((processed_df["Attendance Status"] == "Absent").sum())
+    on_leave = int((processed_df["Attendance Status"] == "On Leave").sum())
+    forgot_punch = int(
+        processed_df["Attendance Status"].isin(
+            ["Forgot Clock-in", "Forgot Clock-out"]
+        ).sum()
+    )
+    normal = int((processed_df["Attendance Status"] == "Normal").sum())
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    with c1:
+        display_metric("Total records", total, calculate_week_label(processed_df))
+    with c2:
+        display_metric("Absent", absent, "Requires HR review")
+    with c3:
+        display_metric("On Leave", on_leave, "Excused by leave")
+    with c4:
+        display_metric("Forgot punch", forgot_punch, "Incomplete punch")
+    with c5:
+        display_metric("Normal", normal, "Complete punches")
+
+    left, right = st.columns([1.05, 1], gap="large")
+
+    with left:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="section-label">Status distribution</div>', unsafe_allow_html=True)
+
+        status_counts = (
+            processed_df["Attendance Status"]
+            .value_counts()
+            .reindex(STATUS_ORDER, fill_value=0)
+        )
+        st.bar_chart(status_counts)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with right:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="section-label">Absence by department</div>', unsafe_allow_html=True)
+
+        department_col = ATTENDANCE_COLUMNS["department"]
+        absence_by_department = (
+            processed_df[processed_df["Attendance Status"] == "Absent"]
+            .groupby(department_col, dropna=False)
+            .size()
+            .sort_values(ascending=False)
+            .head(12)
+        )
+
+        if absence_by_department.empty:
+            st.info("No unexcused absence records were found.")
+        else:
+            st.bar_chart(absence_by_department)
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="section-label">Daily attendance trend</div>', unsafe_allow_html=True)
+
+    date_col = ATTENDANCE_COLUMNS["attendance_date"]
+    daily = processed_df.copy()
+    daily["_date"] = pd.to_datetime(daily[date_col], errors="coerce").dt.date
+
+    daily_summary = (
+        daily.groupby(["_date", "Attendance Status"])
+        .size()
+        .unstack(fill_value=0)
+    )
+
+    trend_columns = [
+        col for col in ["Absent", "On Leave", "Forgot Clock-in", "Forgot Clock-out"]
+        if col in daily_summary.columns
+    ]
+
+    if trend_columns:
+        st.line_chart(daily_summary[trend_columns])
+    else:
+        st.info("No daily exception data is available.")
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="section-label">Employees requiring attention</div>', unsafe_allow_html=True)
+
+    attention = processed_df[
+        processed_df["Attendance Status"].isin(ABNORMAL_STATUSES)
+    ].copy()
+
+    employee_id_col = ATTENDANCE_COLUMNS["employee_id"]
+    employee_name_col = ATTENDANCE_COLUMNS["employee_name"]
+
+    if attention.empty:
+        st.info("No absence or incomplete-punch records were found.")
+    else:
+        attention_summary = (
+            attention.groupby(
+                [employee_id_col, employee_name_col, "Attendance Status"],
+                dropna=False,
+            )
+            .size()
+            .reset_index(name="Records")
+            .sort_values("Records", ascending=False)
+        )
+        st.dataframe(
+            attention_summary,
+            use_container_width=True,
+            hide_index=True,
+            height=360,
         )
 
     st.markdown('</div>', unsafe_allow_html=True)
 
 
-# =========================================================
-# Attendance page
-# =========================================================
-elif page == "Attendance & Absenteeism":
-    st.markdown('<div class="page-title">Attendance & Absenteeism</div>', unsafe_allow_html=True)
+# ============================================================
+# PAGE 4 — HISTORY
+# ============================================================
+elif page == "History":
+    st.markdown('<div class="page-title">History</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="page-subtitle">Review weekly files processed during the current session.</div>',
+        unsafe_allow_html=True,
+    )
 
-    processed_df = st.session_state.processed_df
-    if processed_df is None:
-        st.warning("Upload and process an attendance file first.")
+    if not st.session_state.history:
+        st.markdown(
+            """
+            <div class="card">
+                <div class="empty-state">
+                    <div>
+                        <b>No history yet.</b><br>
+                        Process a weekly attendance and leave pair first.
+                    </div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         st.stop()
 
-    status_counts = processed_df["最終出勤判斷"].value_counts()
-
-    columns = st.columns(6)
-    metrics = [
-        ("Scheduled rows", int((processed_df["最終出勤判斷"] != "No Schedule").sum())),
-        ("Absent", int(status_counts.get("Absent", 0))),
-        ("Forgot clock-in", int(status_counts.get("Forgot Clock-in", 0))),
-        ("Forgot clock-out", int(status_counts.get("Forgot Clock-out", 0))),
-        ("On leave", int(status_counts.get("On Leave", 0))),
-        ("Normal", int(status_counts.get("Normal", 0))),
-    ]
-
-    for column, (label, value) in zip(columns, metrics):
-        with column:
-            render_metric(label, value)
-
-    st.markdown("### Filters")
-    filter_cols = st.columns(4)
-
-    with filter_cols[0]:
-        status_options = sorted(processed_df["最終出勤判斷"].dropna().unique().tolist())
-        selected_statuses = st.multiselect(
-            "Status",
-            status_options,
-            default=[
-                status
-                for status in ["Absent", "Forgot Clock-in", "Forgot Clock-out"]
-                if status in status_options
-            ],
-        )
-
-    with filter_cols[1]:
-        department_options = (
-            sorted(processed_df["部門"].dropna().astype(str).unique().tolist())
-            if "部門" in processed_df.columns
-            else []
-        )
-        selected_departments = st.multiselect("Department", department_options)
-
-    with filter_cols[2]:
-        manager_options = (
-            sorted(processed_df["Reporting To"].dropna().astype(str).unique().tolist())
-            if "Reporting To" in processed_df.columns
-            else []
-        )
-        selected_managers = st.multiselect("Reporting To", manager_options)
-
-    with filter_cols[3]:
-        search_text = st.text_input("Employee ID or name")
-
-    filtered = processed_df.copy()
-
-    if selected_statuses:
-        filtered = filtered[filtered["最終出勤判斷"].isin(selected_statuses)]
-    if selected_departments and "部門" in filtered.columns:
-        filtered = filtered[filtered["部門"].astype(str).isin(selected_departments)]
-    if selected_managers and "Reporting To" in filtered.columns:
-        filtered = filtered[filtered["Reporting To"].astype(str).isin(selected_managers)]
-    if search_text.strip():
-        text = search_text.strip().lower()
-        filtered = filtered[
-            filtered["工號"].astype(str).str.lower().str.contains(text, na=False)
-            | filtered["姓名"].astype(str).str.lower().str.contains(text, na=False)
+    history_table = pd.DataFrame(
+        [
+            {
+                "Week": item["week"],
+                "Processed At": item["processed_at"].strftime("%Y-%m-%d %H:%M"),
+                "Attendance File": item["attendance_file"],
+                "Leave File": item["leave_file"],
+                "Rows": item["rows"],
+                "Absent": item["absent"],
+                "On Leave": item["on_leave"],
+                "Forgot Punch": item["forgot_punch"],
+            }
+            for item in st.session_state.history
         ]
+    )
 
-    preferred_display_columns = [
-        "工號",
-        "姓名",
-        "部門",
-        "Pay Group",
-        "考勤日期",
-        "Reporting To",
-        SCHEDULE_COL,
-        ACTUAL_START_COL,
-        ACTUAL_END_COL,
-        "最終出勤判斷",
-        "請假類型",
-        "判斷說明",
-    ]
-    display_columns = [column for column in preferred_display_columns if column in filtered.columns]
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="section-label">Processed weeks</div>', unsafe_allow_html=True)
+    st.dataframe(history_table, use_container_width=True, hide_index=True)
 
-    st.caption(f"Showing {len(filtered):,} records")
-    styled = filtered[display_columns].style.map(status_colour, subset=["最終出勤判斷"])
-    st.dataframe(styled, use_container_width=True, height=560)
+    selected_week = st.selectbox(
+        "Open a saved week",
+        [item["week"] for item in st.session_state.history],
+    )
 
-    excel_bytes = dataframe_to_excel(filtered, st.session_state.leave_df)
+    selected_item = next(
+        item for item in st.session_state.history
+        if item["week"] == selected_week
+    )
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        display_metric("Rows", selected_item["rows"], selected_week)
+    with c2:
+        display_metric("Absent", selected_item["absent"], "Unexcused")
+    with c3:
+        display_metric("On Leave", selected_item["on_leave"], "Leave overlap")
+    with c4:
+        display_metric("Forgot Punch", selected_item["forgot_punch"], "Incomplete punch")
+
+    history_excel = build_excel_download(
+        selected_item["data"],
+        selected_item["leave_data"],
+    )
     st.download_button(
-        "Download filtered results",
-        data=excel_bytes,
-        file_name="Filtered_Attendance_Results.xlsx",
+        f"Download {selected_week}",
+        data=history_excel,
+        file_name=f"Ingrasys_HR_{selected_week.replace(' ', '_').replace('–', '-')}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# =========================================================
-# Leave page
-# =========================================================
-elif page == "Leave Data":
-    st.markdown('<div class="page-title">Leave Data</div>', unsafe_allow_html=True)
-
-    leave_df = st.session_state.leave_df
-    if leave_df is None:
-        st.warning("No leave file has been processed in this session.")
-        st.stop()
-
-    leave_type_counts = leave_df["請假類型"].fillna("Unknown").value_counts()
-    metric_columns = st.columns(min(4, max(1, len(leave_type_counts))))
-    for column, (leave_type, count) in zip(metric_columns, leave_type_counts.head(4).items()):
-        with column:
-            render_metric(str(leave_type), int(count))
-
-    search_cols = st.columns(3)
-    with search_cols[0]:
-        leave_types = sorted(leave_df["請假類型"].dropna().astype(str).unique().tolist())
-        selected_leave_types = st.multiselect("Leave type", leave_types)
-    with search_cols[1]:
-        leave_employee = st.text_input("Employee ID or name", key="leave_employee")
-    with search_cols[2]:
-        leave_sheet = st.multiselect(
-            "Source sheet",
-            sorted(leave_df["來源工作表"].dropna().astype(str).unique().tolist()),
-        )
-
-    filtered_leave = leave_df.copy()
-    if selected_leave_types:
-        filtered_leave = filtered_leave[
-            filtered_leave["請假類型"].astype(str).isin(selected_leave_types)
-        ]
-    if leave_employee.strip():
-        text = leave_employee.strip().lower()
-        filtered_leave = filtered_leave[
-            filtered_leave["工號"].astype(str).str.lower().str.contains(text, na=False)
-            | filtered_leave["姓名"].astype(str).str.lower().str.contains(text, na=False)
-        ]
-    if leave_sheet:
-        filtered_leave = filtered_leave[
-            filtered_leave["來源工作表"].astype(str).isin(leave_sheet)
-        ]
-
-    st.caption(f"Showing {len(filtered_leave):,} leave records")
-    st.dataframe(filtered_leave, use_container_width=True, height=580)
-
-
-# =========================================================
-# History page
-# =========================================================
-elif page == "History":
-    st.markdown('<div class="page-title">History</div>', unsafe_allow_html=True)
-
-    if not st.session_state.history:
-        st.info("No weeks saved in this browser session yet.")
-    else:
-        history_df = pd.DataFrame(st.session_state.history)
-        history_df = history_df.rename(
-            columns={
-                "week": "Week",
-                "attendance_file": "Attendance File",
-                "leave_file": "Leave File",
-                "rows": "Rows",
-                "absent": "Absent",
-                "forgot_punch": "Forgot Punch",
-            }
-        )
-        st.dataframe(history_df, use_container_width=True, hide_index=True)
-
-        if st.button("Clear session history"):
-            st.session_state.history = []
-            st.rerun()
+    st.caption(
+        "This version keeps history in browser-session memory only. "
+        "Restarting or redeploying the app clears it."
+    )
