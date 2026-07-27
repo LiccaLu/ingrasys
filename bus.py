@@ -242,7 +242,10 @@ with st.expander("使用說明與判定規則"):
 - 每一段資料前需有日期與星期，例如 `1/3（六）`
 """
     )
+    st.markdown("### 範例格式")
 
+    st.code(SAMPLE_TEXT, language="text")
+    
 text = st.text_area(
     "貼上交通車訊息",
     value="",
