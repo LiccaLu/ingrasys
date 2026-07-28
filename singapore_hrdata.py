@@ -543,15 +543,6 @@ def style_chart(
             size=13,
             color="#243247",
         ),
-        title=dict(
-            font=dict(
-                size=18,
-                color="#243247",
-            ),
-            x=0.03,
-            xanchor="left",
-            y=0.96,
-        ),
         margin=dict(
             l=45,
             r=35,
@@ -607,7 +598,10 @@ def style_chart(
         tickfont=dict(color="#667085"),
         title_font=dict(color="#667085"),
     )
-
+    fig_status.update_layout(title="Attendance Status")
+    fig_dept.update_layout(title="Absence Rate by Department")
+    fig_leave.update_layout(title="Approved Leave by Type")
+    fig_daily.update_layout(title="Daily Absence Trend")
     return fig
 
 
