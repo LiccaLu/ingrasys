@@ -902,14 +902,12 @@ elif page == "03  Leave Data":
         else:
             leave_view = leave_view[id_match]
 
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
     st.dataframe(
         leave_view,
         use_container_width=True,
         hide_index=True,
         height=600,
     )
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 # ============================================================
