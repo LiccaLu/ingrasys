@@ -915,41 +915,110 @@ elif page == "03  Leave Data":
 # ============================================================
 elif page == "04  Dashboard":
     require_data()
+
     page_header(
         "Dashboard",
         "Switch each visual between Count and Percentage.",
     )
 
+    # --------------------------------------------------------
+    # 1. Prepare data
+    # --------------------------------------------------------
     df = st.session_state.attendance_df.copy()
-    working_df = df[df["判斷出勤after leave"].isin(WORKING_STATUSES)]
 
-    scheduled_shifts = len(working_df)
-    absent_shifts = int((working_df["判斷出勤after leave"] == "Absent").sum())
-    absent_rate = (absent_shifts / scheduled_shifts * 100) if scheduled_shifts else 0
-
-    unique_scheduled = working_df["工號"].nunique()
-    unique_absent = working_df.loc[
-        working_df["判斷出勤after leave"] == "Absent", "工號"
-    ].nunique()
-    employee_absent_rate = (
-        unique_absent / unique_scheduled * 100 if unique_scheduled else 0
-    )
+    working_df = df[
+        df["判斷出勤after leave"].isin(WORKING_STATUSES)
+    ].copy()
 
     status = df["判斷出勤after leave"]
 
-    c1, c2, c3, c4, c5 = st.columns(5)
-    with c1:
-        metric_card("Absence shift rate", f"{absent_rate:.2f}%", f"{absent_shifts:,} absent shifts")
-    with c2:
-        metric_card("Absent employee rate", f"{employee_absent_rate:.2f}%", f"{unique_absent:,} employees")
-    with c3:
-        metric_card("Leave Approved", f"{(status == 'Leave Approved').sum():,}", "Covered attendance shifts")
-    with c4:
-        metric_card("Forgot Clock-in", f"{(status == 'Forgot Clock-in').sum():,}")
-    with c5:
-        metric_card("Forgot Clock-out", f"{(status == 'Forgot Clock-out').sum():,}")
+    # --------------------------------------------------------
+    # 2. KPI calculations
+    # --------------------------------------------------------
+    scheduled_shifts = len(working_df)
 
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    absent_shifts = int(
+        (
+            working_df["判斷出勤after leave"] == "Absent"
+        ).sum()
+    )
+
+    absent_rate = (
+        absent_shifts / scheduled_shifts * 100
+        if scheduled_shifts > 0
+        else 0
+    )
+
+    unique_scheduled = working_df["工號"].nunique()
+
+    unique_absent = working_df.loc[
+        working_df["判斷出勤after leave"] == "Absent",
+        "工號"
+    ].nunique()
+
+    employee_absent_rate = (
+        unique_absent / unique_scheduled * 100
+        if unique_scheduled > 0
+        else 0
+    )
+
+    leave_approved_count = int(
+        (status == "Leave Approved").sum()
+    )
+
+    forgot_clock_in_count = int(
+        (status == "Forgot Clock-in").sum()
+    )
+
+    forgot_clock_out_count = int(
+        (status == "Forgot Clock-out").sum()
+    )
+
+    # --------------------------------------------------------
+    # 3. KPI cards
+    # --------------------------------------------------------
+    c1, c2, c3, c4, c5 = st.columns(5)
+
+    with c1:
+        metric_card(
+            "Absence shift rate",
+            f"{absent_rate:.2f}%",
+            f"{absent_shifts:,} absent shifts"
+        )
+
+    with c2:
+        metric_card(
+            "Absent employee rate",
+            f"{employee_absent_rate:.2f}%",
+            f"{unique_absent:,} employees"
+        )
+
+    with c3:
+        metric_card(
+            "Leave Approved",
+            f"{leave_approved_count:,}",
+            "Covered attendance shifts"
+        )
+
+    with c4:
+        metric_card(
+            "Forgot Clock-in",
+            f"{forgot_clock_in_count:,}"
+        )
+
+    with c5:
+        metric_card(
+            "Forgot Clock-out",
+            f"{forgot_clock_out_count:,}"
+        )
+
+    st.write("")
+
+    # --------------------------------------------------------
+    # 4. Attendance status pie chart
+    # --------------------------------------------------------
+    st.subheader("Attendance Status")
+
     chart_mode = st.radio(
         "Attendance status display",
         ["Count", "Percentage"],
@@ -958,15 +1027,27 @@ elif page == "04  Dashboard":
     )
 
     status_summary = (
-        status.value_counts()
+        status
+        .value_counts()
         .reindex(STATUS_ORDER, fill_value=0)
-        .rename("Count")
         .reset_index()
-        .rename(columns={"index": "Status"})
     )
-    status_summary["Percentage"] = (
-        status_summary["Count"] / status_summary["Count"].sum() * 100
-    )
+
+    status_summary.columns = [
+        "Status",
+        "Count"
+    ]
+
+    total_status_count = status_summary["Count"].sum()
+
+    if total_status_count > 0:
+        status_summary["Percentage"] = (
+            status_summary["Count"]
+            / total_status_count
+            * 100
+        )
+    else:
+        status_summary["Percentage"] = 0
 
     fig_status = px.pie(
         status_summary,
@@ -975,53 +1056,279 @@ elif page == "04  Dashboard":
         hole=0.48,
         title=f"Attendance Status — {chart_mode}",
     )
-    fig_status.update_traces(
-        textinfo="percent+label" if chart_mode == "Count" else "label+value",
-        hovertemplate="<b>%{label}</b><br>%{value}<extra></extra>",
+
+    if chart_mode == "Count":
+        fig_status.update_traces(
+            textinfo="percent+label",
+            hovertemplate=(
+                "<b>%{label}</b><br>"
+                "Count: %{value}<extra></extra>"
+            ),
+        )
+    else:
+        fig_status.update_traces(
+            texttemplate="%{label}<br>%{value:.2f}%",
+            hovertemplate=(
+                "<b>%{label}</b><br>"
+                "Percentage: %{value:.2f}%"
+                "<extra></extra>"
+            ),
+        )
+
+    fig_status.update_layout(
+        height=470,
+        margin=dict(
+            l=20,
+            r=20,
+            t=60,
+            b=20
+        ),
     )
-    fig_status.update_layout(height=470, margin=dict(l=20, r=20, t=60, b=20))
-    st.plotly_chart(fig_status, use_container_width=True)
+
+    st.plotly_chart(
+        fig_status,
+        use_container_width=True
+    )
 
     status_table = status_summary.copy()
-    status_table["Percentage"] = status_table["Percentage"].round(2)
-    st.dataframe(status_table, use_container_width=True, hide_index=True)
-    st.markdown("</div>", unsafe_allow_html=True)
 
-    left, right = st.columns(2, gap="large")
+    status_table["Percentage"] = (
+        status_table["Percentage"].round(2)
+    )
+
+    st.dataframe(
+        status_table,
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    st.divider()
+
+    # --------------------------------------------------------
+    # 5. Department absence and leave type charts
+    # --------------------------------------------------------
+    left, right = st.columns(
+        2,
+        gap="large"
+    )
 
     with left:
-        st.markdown('<div class="panel">', unsafe_allow_html=True)
+        st.subheader("Absences by Department")
+
         if "部門" in df.columns:
-            show_count_percentage_chart(
-                df=df,
-                category_column="部門",
-                status_value="Absent",
-                title="Absences by Department",
-                key="dept_absent",
+
+            dept_mode = st.radio(
+                "Department absence display",
+                ["Count", "Percentage"],
+                horizontal=True,
+                key="dept_absent_mode",
             )
+
+            absent_df = df[
+                df["判斷出勤after leave"] == "Absent"
+            ].copy()
+
+            dept_absent_summary = (
+                absent_df
+                .groupby("部門", dropna=False)
+                .size()
+                .sort_values(ascending=False)
+                .rename("Count")
+                .reset_index()
+            )
+
+            if not dept_absent_summary.empty:
+
+                total_dept_absent = (
+                    dept_absent_summary["Count"].sum()
+                )
+
+                dept_absent_summary["Percentage"] = (
+                    dept_absent_summary["Count"]
+                    / total_dept_absent
+                    * 100
+                )
+
+                fig_dept = px.bar(
+                    dept_absent_summary,
+                    x="部門",
+                    y=dept_mode,
+                    text=dept_absent_summary[
+                        dept_mode
+                    ].map(
+                        lambda value:
+                        f"{value:.1f}%"
+                        if dept_mode == "Percentage"
+                        else f"{int(value)}"
+                    ),
+                    title=f"Absences by Department — {dept_mode}",
+                )
+
+                fig_dept.update_traces(
+                    textposition="outside"
+                )
+
+                fig_dept.update_layout(
+                    xaxis_title="",
+                    yaxis_title=(
+                        "Percentage (%)"
+                        if dept_mode == "Percentage"
+                        else "Count"
+                    ),
+                    height=440,
+                    margin=dict(
+                        l=20,
+                        r=20,
+                        t=60,
+                        b=80
+                    ),
+                )
+
+                st.plotly_chart(
+                    fig_dept,
+                    use_container_width=True
+                )
+
+                dept_table = (
+                    dept_absent_summary.copy()
+                )
+
+                dept_table["Percentage"] = (
+                    dept_table["Percentage"].round(2)
+                )
+
+                st.dataframe(
+                    dept_table,
+                    use_container_width=True,
+                    hide_index=True,
+                )
+
+            else:
+                st.info(
+                    "No absent records are available."
+                )
+
         else:
-            st.info("Department column is unavailable.")
-        st.markdown("</div>", unsafe_allow_html=True)
+            st.info(
+                "Department column is unavailable."
+            )
 
     with right:
-        st.markdown('<div class="panel">', unsafe_allow_html=True)
-        leave_approved = df[df["判斷出勤after leave"] == "Leave Approved"].copy()
-        if not leave_approved.empty:
-            show_count_percentage_chart(
-                df=leave_approved,
-                category_column="Leave Type",
-                status_value=None,
-                title="Approved Leave by Type",
-                key="leave_type",
-            )
-        else:
-            st.info("No approved leave records matched Attendance.")
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.subheader("Approved Leave by Type")
 
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
+        leave_mode = st.radio(
+            "Leave type display",
+            ["Count", "Percentage"],
+            horizontal=True,
+            key="leave_type_mode",
+        )
+
+        leave_approved_df = df[
+            df["判斷出勤after leave"]
+            == "Leave Approved"
+        ].copy()
+
+        if (
+            not leave_approved_df.empty
+            and "Leave Type"
+            in leave_approved_df.columns
+        ):
+
+            leave_type_summary = (
+                leave_approved_df[
+                    "Leave Type"
+                ]
+                .replace("", "Unspecified Leave")
+                .fillna("Unspecified Leave")
+                .value_counts()
+                .rename("Count")
+                .reset_index()
+            )
+
+            leave_type_summary.columns = [
+                "Leave Type",
+                "Count"
+            ]
+
+            total_leave_count = (
+                leave_type_summary["Count"].sum()
+            )
+
+            leave_type_summary["Percentage"] = (
+                leave_type_summary["Count"]
+                / total_leave_count
+                * 100
+            )
+
+            fig_leave = px.bar(
+                leave_type_summary,
+                x="Leave Type",
+                y=leave_mode,
+                text=leave_type_summary[
+                    leave_mode
+                ].map(
+                    lambda value:
+                    f"{value:.1f}%"
+                    if leave_mode == "Percentage"
+                    else f"{int(value)}"
+                ),
+                title=f"Approved Leave by Type — {leave_mode}",
+            )
+
+            fig_leave.update_traces(
+                textposition="outside"
+            )
+
+            fig_leave.update_layout(
+                xaxis_title="",
+                yaxis_title=(
+                    "Percentage (%)"
+                    if leave_mode == "Percentage"
+                    else "Count"
+                ),
+                height=440,
+                margin=dict(
+                    l=20,
+                    r=20,
+                    t=60,
+                    b=80
+                ),
+            )
+
+            st.plotly_chart(
+                fig_leave,
+                use_container_width=True
+            )
+
+            leave_type_table = (
+                leave_type_summary.copy()
+            )
+
+            leave_type_table["Percentage"] = (
+                leave_type_table[
+                    "Percentage"
+                ].round(2)
+            )
+
+            st.dataframe(
+                leave_type_table,
+                use_container_width=True,
+                hide_index=True,
+            )
+
+        else:
+            st.info(
+                "No approved leave records matched Attendance."
+            )
+
+    st.divider()
+
+    # --------------------------------------------------------
+    # 6. Daily absence trend
+    # --------------------------------------------------------
+    st.subheader("Daily Absence Trend")
+
     if "考勤日期" in df.columns:
-        daily = df.copy()
-        daily["Date"] = pd.to_datetime(daily["考勤日期"], errors="coerce").dt.date
 
         daily_mode = st.radio(
             "Daily trend display",
@@ -1030,13 +1337,42 @@ elif page == "04  Dashboard":
             key="daily_mode",
         )
 
-        daily_summary = daily.groupby("Date").agg(
-            Count=("判斷出勤after leave", lambda x: (x == "Absent").sum()),
-            Total=("判斷出勤after leave", lambda x: x.isin(WORKING_STATUSES).sum()),
-        ).reset_index()
+        daily = df.copy()
+
+        daily["Date"] = pd.to_datetime(
+            daily["考勤日期"],
+            errors="coerce"
+        ).dt.date
+
+        daily = daily[
+            daily["Date"].notna()
+        ]
+
+        daily_summary = (
+            daily
+            .groupby("Date")
+            .agg(
+                Count=(
+                    "判斷出勤after leave",
+                    lambda values:
+                    (values == "Absent").sum()
+                ),
+                Total=(
+                    "判斷出勤after leave",
+                    lambda values:
+                    values.isin(
+                        WORKING_STATUSES
+                    ).sum()
+                ),
+            )
+            .reset_index()
+        )
 
         daily_summary["Percentage"] = (
-            daily_summary["Count"] / daily_summary["Total"].replace(0, pd.NA) * 100
+            daily_summary["Count"]
+            / daily_summary["Total"]
+            .replace(0, pd.NA)
+            * 100
         ).fillna(0)
 
         fig_daily = px.line(
@@ -1046,15 +1382,58 @@ elif page == "04  Dashboard":
             markers=True,
             title=f"Daily Absence Trend — {daily_mode}",
         )
+
         fig_daily.update_layout(
-            yaxis_title="Percentage (%)" if daily_mode == "Percentage" else "Count",
             xaxis_title="",
+            yaxis_title=(
+                "Percentage (%)"
+                if daily_mode == "Percentage"
+                else "Count"
+            ),
             height=430,
+            margin=dict(
+                l=20,
+                r=20,
+                t=60,
+                b=20
+            ),
         )
-        st.plotly_chart(fig_daily, use_container_width=True)
-    st.markdown("</div>", unsafe_allow_html=True)
 
+        fig_daily.update_traces(
+            hovertemplate=(
+                "<b>%{x}</b><br>"
+                + (
+                    "Percentage: %{y:.2f}%"
+                    if daily_mode
+                    == "Percentage"
+                    else "Count: %{y}"
+                )
+                + "<extra></extra>"
+            )
+        )
 
+        st.plotly_chart(
+            fig_daily,
+            use_container_width=True
+        )
+
+        daily_table = daily_summary.copy()
+
+        daily_table["Percentage"] = (
+            daily_table["Percentage"].round(2)
+        )
+
+        st.dataframe(
+            daily_table,
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    else:
+        st.info(
+            "Attendance date column is unavailable."
+        )
+        
 # ============================================================
 # 05 HISTORY
 # ============================================================
