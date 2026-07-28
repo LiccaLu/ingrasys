@@ -1612,21 +1612,61 @@ A scheduled shift has an actual clock-in, but no actual clock-out.
 
             daily = daily[daily["Date"].notna()].copy()
 
-            daily_summary = (
-                daily
-                .groupby("Date")
-                .agg(
-                    Count=(
-                        "判斷出勤after leave",
-                        lambda values: (values == "Absent").sum(),
-                    ),
-                    Scheduled=(
-                        "判斷出勤after leave",
-                        lambda values:
-                        values.isin(WORKING_STATUSES).sum(),
-                    ),
+            # Scheduled 包括正常、忘刷卡、缺勤及已核准請假
+            daily_scheduled_statuses = [
+                "Normal",
+                "Leave Approved",
+                "Absent",
+                "Forgot Clock-in",
+                "Forgot Clock-out",
+            ]
+            
+            # 只保留有排班的紀錄
+            daily_scheduled = daily[
+                daily["判斷出勤after leave"].isin(
+                    daily_scheduled_statuses
                 )
+            ].copy()
+            
+            # 每位員工每天只保留一次
+            daily_scheduled = daily_scheduled.drop_duplicates(
+                subset=["工號", "Date"]
+            )
+            
+            # 每日應出勤員工人數
+            scheduled_summary = (
+                daily_scheduled
+                .groupby("Date")["工號"]
+                .nunique()
+                .rename("Scheduled")
+            )
+            
+            # 每日缺勤員工人數
+            absent_summary = (
+                daily_scheduled[
+                    daily_scheduled["判斷出勤after leave"] == "Absent"
+                ]
+                .groupby("Date")["工號"]
+                .nunique()
+                .rename("Count")
+            )
+            
+            # 合併每日結果
+            daily_summary = (
+                pd.concat(
+                    [absent_summary, scheduled_summary],
+                    axis=1
+                )
+                .fillna(0)
                 .reset_index()
+            )
+            
+            daily_summary["Count"] = (
+                daily_summary["Count"].astype(int)
+            )
+
+            daily_summary["Scheduled"] = (
+                daily_summary["Scheduled"].astype(int)
             )
 
             daily_summary["Percentage"] = (
