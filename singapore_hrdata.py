@@ -411,6 +411,20 @@ def compare_with_leave(row: pd.Series, al_df: pd.DataFrame, other_df: pd.DataFra
 
 
 def read_and_process(attendance_file, leave_file):
+    
+    def clean_text(series):
+        return (
+        series.astype(str)
+        .str.replace("\n", " ", regex=False)
+        .str.strip()
+        .str.replace(r"\s+", " ", regex=True)
+        .str.replace(r"\s*-\s*", " - ", regex=True)
+        )
+
+    attendance_df["部門"] = clean_text(attendance_df["部門"])
+    al_df["departmentname"] = clean_text(al_df["departmentname"])
+    other_leave_df["departmentname"] = clean_text(other_leave_df["departmentname"])
+
     attendance_excel = pd.ExcelFile(attendance_file)
     attendance_sheet = attendance_excel.sheet_names[0]
 
