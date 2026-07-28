@@ -1642,19 +1642,19 @@ These records require attendance verification.
             hide_index=True,
         )
 
-    else:
-        st.info(
-            "Attendance date column is unavailable."
-        )
-        
-# ============================================================
-# 05 HISTORY
-# ============================================================
-    elif page == "05  History":
-        page_header(
-            "History",
-            "Files processed during the current browser session.",
-        )
+        else:
+            st.info(
+                "Attendance date column is unavailable."
+            )
+            
+    # ============================================================
+    # 05 HISTORY
+    # ============================================================
+        elif page == "05  History":
+            page_header(
+                "History",
+                "Files processed during the current browser session.",
+            )
 
     if not st.session_state.history:
         st.info("No processed history is available yet.")
