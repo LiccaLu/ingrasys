@@ -1581,7 +1581,7 @@ A scheduled shift has an actual clock-in, but no actual clock-out.
     st.write("")
 
  # Daily trend card
- with st.container(border=True):
+    with st.container(border=True):
         st.markdown(
             '<div class="dashboard-section-title">'
             'Daily Absence Trend'
