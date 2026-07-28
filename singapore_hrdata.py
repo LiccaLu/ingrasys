@@ -196,9 +196,11 @@ st.markdown(
         line-height: 1.55;
     }
 
-    footer, #MainMenu, header {
+    footer,
+    #MainMenu {
         visibility: hidden;
     }
+
     </style>
     """,
     unsafe_allow_html=True,
