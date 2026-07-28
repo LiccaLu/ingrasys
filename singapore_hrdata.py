@@ -614,34 +614,118 @@ if page == "01  Upload":
     col1, col2 = st.columns(2, gap="large")
 
     with col1:
-        st.markdown("""
-        <div class="panel">
-            <div class="section-title">ATTENDANCE FILE</div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            '<div class="section-title">ATTENDANCE FILE</div>',
+            unsafe_allow_html=True
+        )
 
         attendance_file = st.file_uploader(
-            "",
+            "Attendance file",
             type=["xlsx", "xls"],
             key="attendance_upload",
             label_visibility="collapsed"
         )
 
-        st.markdown("</div>", unsafe_allow_html=True)
-
     with col2:
-        st.markdown("""
-        <div class="panel">
-            <div class="section-title">LEAVE FILE</div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            '<div class="section-title">LEAVE FILE</div>',
+            unsafe_allow_html=True
+        )
 
         leave_file = st.file_uploader(
-            "",
+            "Leave file",
             type=["xlsx", "xls"],
             key="leave_upload",
             label_visibility="collapsed"
         )
 
-        st.markdown("</div>", unsafe_allow_html=True)
+    # Process button directly below uploaders
+    process_clicked = st.button(
+        "Process Files",
+        type="primary",
+        disabled=attendance_file is None or leave_file is None,
+        use_container_width=True
+    )
+
+    if process_clicked:
+        try:
+            with st.spinner("Processing Attendance, AL and Other Leave..."):
+                attendance, al, other, sheet = read_and_process(
+                    attendance_file,
+                    leave_file
+                )
+
+                st.session_state.attendance_df = attendance
+                st.session_state.al_df = al
+                st.session_state.other_leave_df = other
+
+                st.session_state.file_names = {
+                    "attendance": attendance_file.name,
+                    "leave": leave_file.name,
+                    "sheet": sheet
+                }
+
+                statuses = attendance["判斷出勤after leave"]
+
+                history_item = {
+                    "Processed At": datetime.now(),
+                    "Attendance File": attendance_file.name,
+                    "Leave File": leave_file.name,
+                    "Attendance Rows": len(attendance),
+                    "Absent": int((statuses == "Absent").sum()),
+                    "Leave Approved": int(
+                        (statuses == "Leave Approved").sum()
+                    ),
+                    "Forgot Clock-in": int(
+                        (statuses == "Forgot Clock-in").sum()
+                    ),
+                    "Forgot Clock-out": int(
+                        (statuses == "Forgot Clock-out").sum()
+                    ),
+                    "data": attendance.copy()
+                }
+
+                st.session_state.history.insert(0, history_item)
+
+            st.success("Files processed successfully.")
+
+            c1, c2, c3, c4 = st.columns(4)
+
+            with c1:
+                metric_card(
+                    "Attendance rows",
+                    f"{len(attendance):,}",
+                    f"Sheet: {sheet}"
+                )
+
+            with c2:
+                metric_card(
+                    "Absent",
+                    f"{(statuses == 'Absent').sum():,}",
+                    "After leave matching"
+                )
+
+            with c3:
+                metric_card(
+                    "Leave Approved",
+                    f"{(statuses == 'Leave Approved').sum():,}",
+                    "AL + Other Leave"
+                )
+
+            with c4:
+                missing_punch = statuses.isin([
+                    "Forgot Clock-in",
+                    "Forgot Clock-out"
+                ]).sum()
+
+                metric_card(
+                    "Forgot Punch",
+                    f"{missing_punch:,}",
+                    "Incomplete punch records"
+                )
+
+        except Exception as exc:
+            st.error(f"Unable to process files: {exc}")
 
 
 # ============================================================
