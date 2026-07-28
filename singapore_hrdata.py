@@ -1650,11 +1650,11 @@ These records require attendance verification.
 # ============================================================
 # 05 HISTORY
 # ============================================================
-elif page == "05  History":
-    page_header(
-        "History",
-        "Files processed during the current browser session.",
-    )
+    elif page == "05  History":
+        page_header(
+            "History",
+            "Files processed during the current browser session.",
+        )
 
     if not st.session_state.history:
         st.info("No processed history is available yet.")
