@@ -481,9 +481,11 @@ def metric_card(label, value, note=""):
     )
 
 
-def page_header(title, subtitle):
-    st.markdown(f'<div class="page-title">{title}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="page-subtitle">{subtitle}</div>', unsafe_allow_html=True)
+def page_header(title, subtitle=None):
+    st.markdown(f"<h1>{title}</h1>", unsafe_allow_html=True)
+
+    if subtitle:
+        st.markdown(f"<p>{subtitle}</p>", unsafe_allow_html=True)
 
 
 def require_data():
@@ -607,10 +609,7 @@ else:
 # 01 UPLOAD
 # ============================================================
 if page == "01  Upload":
-    page_header(
-        "Upload",
-        "Upload one Attendance Excel file and one Leave Excel file.",
-    )
+    page_header("Upload")
 
     col1, col2 = st.columns(2, gap="large")
 
