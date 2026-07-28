@@ -1643,18 +1643,18 @@ elif page == "04  Dashboard":
         )
 
     else:
-            st.info(
-                "Attendance date column is unavailable."
-            )
+        st.info(
+            "Attendance date column is unavailable."
+        )
             
-    # ============================================================
-    # 05 HISTORY
-    # ============================================================
+# ============================================================
+# 05 HISTORY
+# ============================================================
 elif page == "05  History":
-            page_header(
-                "History",
-                "Files processed during the current browser session.",
-            )
+    page_header(
+        "History",
+        "Files processed during the current browser session.",
+    )
 
     if not st.session_state.history:
         st.info("No processed history is available yet.")
