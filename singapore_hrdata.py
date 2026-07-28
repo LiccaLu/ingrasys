@@ -811,7 +811,7 @@ elif page == "02  Attendance & Absenteeism":
 
     st.markdown('<div class="panel">', unsafe_allow_html=True)
     st.dataframe(
-        filtered[display_columns],
+        filtered,
         use_container_width=True,
         hide_index=True,
         height=600,
