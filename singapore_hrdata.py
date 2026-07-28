@@ -609,7 +609,10 @@ else:
 if page == "01  Upload":
     page_header(
         "Upload",
+        "Upload one Attendance Excel file and one Leave Excel file.",
     )
+
+    col1, col2 = st.columns(2, gap="large")
 
     with col1:
         st.markdown('<div class="panel">', unsafe_allow_html=True)
