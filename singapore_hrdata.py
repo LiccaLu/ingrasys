@@ -491,6 +491,96 @@ def metric_card(label, value, note=""):
         """,
         unsafe_allow_html=True,
     )
+def style_chart(
+    fig,
+    height=360,
+    show_legend=True,
+    legend_position="bottom",
+):
+    fig.update_layout(
+        height=height,
+
+        # 卡片風格
+        paper_bgcolor="#FFFFFF",
+        plot_bgcolor="#FFFFFF",
+
+        # 字體
+        font=dict(
+            family="Arial, sans-serif",
+            size=13,
+            color="#243247",
+        ),
+
+        title=dict(
+            font=dict(
+                size=18,
+                color="#243247",
+            ),
+            x=0.03,
+            xanchor="left",
+            y=0.95,
+        ),
+
+        margin=dict(
+            l=45,
+            r=35,
+            t=70,
+            b=55,
+        ),
+
+        # 移除 Plotly 預設多餘樣式
+        hoverlabel=dict(
+            bgcolor="#243247",
+            font_size=13,
+            font_color="white",
+            bordercolor="#243247",
+        ),
+
+        showlegend=show_legend,
+    )
+
+    if show_legend:
+        if legend_position == "bottom":
+            fig.update_layout(
+                legend=dict(
+                    orientation="h",
+                    yanchor="top",
+                    y=-0.12,
+                    xanchor="center",
+                    x=0.5,
+                    title_text="",
+                )
+            )
+        else:
+            fig.update_layout(
+                legend=dict(
+                    orientation="v",
+                    yanchor="middle",
+                    y=0.5,
+                    xanchor="left",
+                    x=1.02,
+                    title_text="",
+                )
+            )
+
+    fig.update_xaxes(
+        showgrid=False,
+        zeroline=False,
+        linecolor="#E5EAF0",
+        tickfont=dict(color="#667085"),
+        title_font=dict(color="#667085"),
+    )
+
+    fig.update_yaxes(
+        showgrid=True,
+        gridcolor="#EEF1F5",
+        zeroline=False,
+        linecolor="#E5EAF0",
+        tickfont=dict(color="#667085"),
+        title_font=dict(color="#667085"),
+    )
+
+    return fig
 
 
 def page_header(title, subtitle=None):
