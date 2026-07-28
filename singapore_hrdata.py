@@ -921,10 +921,22 @@ elif page == "04  Dashboard":
         "Switch each visual between Count and Percentage.",
     )
 
-    # --------------------------------------------------------
+    # ========================================================
     # 1. Prepare data
-    # --------------------------------------------------------
+    # ========================================================
     df = st.session_state.attendance_df.copy()
+
+    # 清理部門名稱，避免空格不同造成重複部門
+    if "部門" in df.columns:
+        df["部門"] = (
+            df["部門"]
+            .astype(str)
+            .str.replace("\n", " ", regex=False)
+            .str.replace("\u00a0", " ", regex=False)
+            .str.strip()
+            .str.replace(r"\s+", " ", regex=True)
+            .str.replace(r"\s*-\s*", " - ", regex=True)
+        )
 
     working_df = df[
         df["判斷出勤after leave"].isin(WORKING_STATUSES)
@@ -932,9 +944,9 @@ elif page == "04  Dashboard":
 
     status = df["判斷出勤after leave"]
 
-    # --------------------------------------------------------
+    # ========================================================
     # 2. KPI calculations
-    # --------------------------------------------------------
+    # ========================================================
     scheduled_shifts = len(working_df)
 
     absent_shifts = int(
@@ -943,22 +955,24 @@ elif page == "04  Dashboard":
         ).sum()
     )
 
-    absent_rate = (
+    absence_shift_rate = (
         absent_shifts / scheduled_shifts * 100
         if scheduled_shifts > 0
         else 0
     )
 
-    unique_scheduled = working_df["工號"].nunique()
+    unique_scheduled_employees = working_df["工號"].nunique()
 
-    unique_absent = working_df.loc[
+    unique_absent_employees = working_df.loc[
         working_df["判斷出勤after leave"] == "Absent",
         "工號"
     ].nunique()
 
-    employee_absent_rate = (
-        unique_absent / unique_scheduled * 100
-        if unique_scheduled > 0
+    absent_employee_rate = (
+        unique_absent_employees
+        / unique_scheduled_employees
+        * 100
+        if unique_scheduled_employees > 0
         else 0
     )
 
@@ -974,23 +988,23 @@ elif page == "04  Dashboard":
         (status == "Forgot Clock-out").sum()
     )
 
-    # --------------------------------------------------------
+    # ========================================================
     # 3. KPI cards
-    # --------------------------------------------------------
+    # ========================================================
     c1, c2, c3, c4, c5 = st.columns(5)
 
     with c1:
         metric_card(
             "Absence shift rate",
-            f"{absent_rate:.2f}%",
+            f"{absence_shift_rate:.2f}%",
             f"{absent_shifts:,} absent shifts"
         )
 
     with c2:
         metric_card(
             "Absent employee rate",
-            f"{employee_absent_rate:.2f}%",
-            f"{unique_absent:,} employees"
+            f"{absent_employee_rate:.2f}%",
+            f"{unique_absent_employees:,} employees"
         )
 
     with c3:
@@ -1012,11 +1026,11 @@ elif page == "04  Dashboard":
             f"{forgot_clock_out_count:,}"
         )
 
-    st.write("")
+    st.divider()
 
-    # --------------------------------------------------------
-    # 4. Attendance status pie chart
-    # --------------------------------------------------------
+    # ========================================================
+    # 4. Attendance Status
+    # ========================================================
     st.subheader("Attendance Status")
 
     chart_mode = st.radio(
@@ -1026,17 +1040,28 @@ elif page == "04  Dashboard":
         key="status_chart_mode",
     )
 
+    # 排除 No schedule，讓主要出勤狀況更容易閱讀
+    status_for_chart = df.loc[
+        df["判斷出勤after leave"] != "No schedule",
+        "判斷出勤after leave"
+    ]
+
+    status_order_for_chart = [
+        "Normal",
+        "Leave Approved",
+        "Absent",
+        "Forgot Clock-in",
+        "Forgot Clock-out",
+    ]
+
     status_summary = (
-        status
+        status_for_chart
         .value_counts()
-        .reindex(STATUS_ORDER, fill_value=0)
+        .reindex(status_order_for_chart, fill_value=0)
         .reset_index()
     )
 
-    status_summary.columns = [
-        "Status",
-        "Count"
-    ]
+    status_summary.columns = ["Status", "Count"]
 
     total_status_count = status_summary["Count"].sum()
 
@@ -1047,42 +1072,59 @@ elif page == "04  Dashboard":
             * 100
         )
     else:
-        status_summary["Percentage"] = 0
+        status_summary["Percentage"] = 0.0
 
+    # Pie 大小永遠用 Count，切換時只改顯示文字
     fig_status = px.pie(
         status_summary,
         names="Status",
-        values=chart_mode,
-        hole=0.48,
+        values="Count",
+        hole=0.52,
         title=f"Attendance Status — {chart_mode}",
+        custom_data=["Percentage"],
     )
 
     if chart_mode == "Count":
         fig_status.update_traces(
-            textinfo="percent+label",
+            texttemplate="%{label}<br>%{value:,}",
+            textposition="inside",
             hovertemplate=(
                 "<b>%{label}</b><br>"
-                "Count: %{value}<extra></extra>"
+                "Count: %{value:,}<br>"
+                "Percentage: %{customdata[0]:.2f}%"
+                "<extra></extra>"
             ),
         )
+
     else:
         fig_status.update_traces(
-            texttemplate="%{label}<br>%{value:.2f}%",
+            texttemplate="%{label}<br>%{customdata[0]:.2f}%",
+            textposition="inside",
             hovertemplate=(
                 "<b>%{label}</b><br>"
-                "Percentage: %{value:.2f}%"
+                "Percentage: %{customdata[0]:.2f}%<br>"
+                "Count: %{value:,}"
                 "<extra></extra>"
             ),
         )
 
     fig_status.update_layout(
-        height=470,
+        height=590,
         margin=dict(
-            l=20,
-            r=20,
-            t=60,
-            b=20
+            l=40,
+            r=210,
+            t=80,
+            b=70,
         ),
+        legend=dict(
+            orientation="v",
+            yanchor="middle",
+            y=0.5,
+            xanchor="left",
+            x=1.02,
+        ),
+        uniformtext_minsize=11,
+        uniformtext_mode="hide",
     )
 
     st.plotly_chart(
@@ -1091,7 +1133,6 @@ elif page == "04  Dashboard":
     )
 
     status_table = status_summary.copy()
-
     status_table["Percentage"] = (
         status_table["Percentage"].round(2)
     )
@@ -1104,16 +1145,19 @@ elif page == "04  Dashboard":
 
     st.divider()
 
-    # --------------------------------------------------------
-    # 5. Department absence and leave type charts
-    # --------------------------------------------------------
+    # ========================================================
+    # 5. Department absence and approved leave type
+    # ========================================================
     left, right = st.columns(
         2,
         gap="large"
     )
 
+    # --------------------------------------------------------
+    # 5A. Department absence
+    # --------------------------------------------------------
     with left:
-        st.subheader("Absences by Department")
+        st.subheader("Absence Rate by Department")
 
         if "部門" in df.columns:
 
@@ -1124,63 +1168,98 @@ elif page == "04  Dashboard":
                 key="dept_absent_mode",
             )
 
-            absent_df = df[
-                df["判斷出勤after leave"] == "Absent"
+            # 只使用真正應出勤的狀態作為分母
+            department_working = df[
+                df["判斷出勤after leave"].isin(WORKING_STATUSES)
             ].copy()
 
             dept_absent_summary = (
-                absent_df
+                department_working
                 .groupby("部門", dropna=False)
-                .size()
-                .sort_values(ascending=False)
-                .rename("Count")
+                .agg(
+                    Count=(
+                        "判斷出勤after leave",
+                        lambda values: (
+                            values == "Absent"
+                        ).sum()
+                    ),
+                    Scheduled=(
+                        "判斷出勤after leave",
+                        "size"
+                    ),
+                )
                 .reset_index()
+            )
+
+            dept_absent_summary["Percentage"] = (
+                dept_absent_summary["Count"]
+                / dept_absent_summary["Scheduled"]
+                .replace(0, pd.NA)
+                * 100
+            ).fillna(0)
+
+            dept_absent_summary = (
+                dept_absent_summary
+                .sort_values(
+                    dept_mode,
+                    ascending=False
+                )
             )
 
             if not dept_absent_summary.empty:
 
-                total_dept_absent = (
-                    dept_absent_summary["Count"].sum()
-                )
-
-                dept_absent_summary["Percentage"] = (
-                    dept_absent_summary["Count"]
-                    / total_dept_absent
-                    * 100
+                dept_text = (
+                    dept_absent_summary[dept_mode]
+                    .map(
+                        lambda value:
+                        f"{value:.2f}%"
+                        if dept_mode == "Percentage"
+                        else f"{int(value)}"
+                    )
                 )
 
                 fig_dept = px.bar(
                     dept_absent_summary,
                     x="部門",
                     y=dept_mode,
-                    text=dept_absent_summary[
-                        dept_mode
-                    ].map(
-                        lambda value:
-                        f"{value:.1f}%"
-                        if dept_mode == "Percentage"
-                        else f"{int(value)}"
+                    text=dept_text,
+                    title=(
+                        f"Absence Rate by Department — "
+                        f"{dept_mode}"
                     ),
-                    title=f"Absences by Department — {dept_mode}",
                 )
 
                 fig_dept.update_traces(
-                    textposition="outside"
+                    textposition="outside",
+                    cliponaxis=False,
+                    hovertemplate=(
+                        "<b>%{x}</b><br>"
+                        + (
+                            "Absence rate: %{y:.2f}%"
+                            if dept_mode == "Percentage"
+                            else "Absent shifts: %{y:,}"
+                        )
+                        + "<extra></extra>"
+                    ),
                 )
 
                 fig_dept.update_layout(
                     xaxis_title="",
                     yaxis_title=(
-                        "Percentage (%)"
+                        "Absence rate (%)"
                         if dept_mode == "Percentage"
-                        else "Count"
+                        else "Absent shifts"
                     ),
-                    height=440,
+                    height=520,
                     margin=dict(
-                        l=20,
-                        r=20,
-                        t=60,
-                        b=80
+                        l=40,
+                        r=30,
+                        t=70,
+                        b=150,
+                    ),
+                    xaxis=dict(
+                        tickangle=-45,
+                        automargin=True,
                     ),
                 )
 
@@ -1189,23 +1268,28 @@ elif page == "04  Dashboard":
                     use_container_width=True
                 )
 
-                dept_table = (
-                    dept_absent_summary.copy()
-                )
+                dept_table = dept_absent_summary.copy()
 
                 dept_table["Percentage"] = (
                     dept_table["Percentage"].round(2)
                 )
 
                 st.dataframe(
-                    dept_table,
+                    dept_table[
+                        [
+                            "部門",
+                            "Count",
+                            "Scheduled",
+                            "Percentage",
+                        ]
+                    ],
                     use_container_width=True,
                     hide_index=True,
                 )
 
             else:
                 st.info(
-                    "No absent records are available."
+                    "No department attendance records are available."
                 )
 
         else:
@@ -1213,6 +1297,9 @@ elif page == "04  Dashboard":
                 "Department column is unavailable."
             )
 
+    # --------------------------------------------------------
+    # 5B. Approved Leave Type
+    # --------------------------------------------------------
     with right:
         st.subheader("Approved Leave by Type")
 
@@ -1230,16 +1317,19 @@ elif page == "04  Dashboard":
 
         if (
             not leave_approved_df.empty
-            and "Leave Type"
-            in leave_approved_df.columns
+            and "Leave Type" in leave_approved_df.columns
         ):
 
-            leave_type_summary = (
-                leave_approved_df[
-                    "Leave Type"
-                ]
-                .replace("", "Unspecified Leave")
+            leave_approved_df["Leave Type"] = (
+                leave_approved_df["Leave Type"]
+                .replace("", pd.NA)
                 .fillna("Unspecified Leave")
+                .astype(str)
+                .str.strip()
+            )
+
+            leave_type_summary = (
+                leave_approved_df["Leave Type"]
                 .value_counts()
                 .rename("Count")
                 .reset_index()
@@ -1254,29 +1344,56 @@ elif page == "04  Dashboard":
                 leave_type_summary["Count"].sum()
             )
 
-            leave_type_summary["Percentage"] = (
-                leave_type_summary["Count"]
-                / total_leave_count
-                * 100
+            if total_leave_count > 0:
+                leave_type_summary["Percentage"] = (
+                    leave_type_summary["Count"]
+                    / total_leave_count
+                    * 100
+                )
+            else:
+                leave_type_summary["Percentage"] = 0.0
+
+            leave_type_summary = (
+                leave_type_summary
+                .sort_values(
+                    leave_mode,
+                    ascending=False
+                )
+            )
+
+            leave_text = (
+                leave_type_summary[leave_mode]
+                .map(
+                    lambda value:
+                    f"{value:.2f}%"
+                    if leave_mode == "Percentage"
+                    else f"{int(value)}"
+                )
             )
 
             fig_leave = px.bar(
                 leave_type_summary,
                 x="Leave Type",
                 y=leave_mode,
-                text=leave_type_summary[
-                    leave_mode
-                ].map(
-                    lambda value:
-                    f"{value:.1f}%"
-                    if leave_mode == "Percentage"
-                    else f"{int(value)}"
+                text=leave_text,
+                title=(
+                    f"Approved Leave by Type — "
+                    f"{leave_mode}"
                 ),
-                title=f"Approved Leave by Type — {leave_mode}",
             )
 
             fig_leave.update_traces(
-                textposition="outside"
+                textposition="outside",
+                cliponaxis=False,
+                hovertemplate=(
+                    "<b>%{x}</b><br>"
+                    + (
+                        "Percentage: %{y:.2f}%"
+                        if leave_mode == "Percentage"
+                        else "Count: %{y:,}"
+                    )
+                    + "<extra></extra>"
+                ),
             )
 
             fig_leave.update_layout(
@@ -1286,12 +1403,16 @@ elif page == "04  Dashboard":
                     if leave_mode == "Percentage"
                     else "Count"
                 ),
-                height=440,
+                height=520,
                 margin=dict(
-                    l=20,
-                    r=20,
-                    t=60,
-                    b=80
+                    l=40,
+                    r=30,
+                    t=70,
+                    b=150,
+                ),
+                xaxis=dict(
+                    tickangle=-45,
+                    automargin=True,
                 ),
             )
 
@@ -1305,9 +1426,7 @@ elif page == "04  Dashboard":
             )
 
             leave_type_table["Percentage"] = (
-                leave_type_table[
-                    "Percentage"
-                ].round(2)
+                leave_type_table["Percentage"].round(2)
             )
 
             st.dataframe(
@@ -1323,9 +1442,9 @@ elif page == "04  Dashboard":
 
     st.divider()
 
-    # --------------------------------------------------------
+    # ========================================================
     # 6. Daily absence trend
-    # --------------------------------------------------------
+    # ========================================================
     st.subheader("Daily Absence Trend")
 
     if "考勤日期" in df.columns:
@@ -1346,7 +1465,7 @@ elif page == "04  Dashboard":
 
         daily = daily[
             daily["Date"].notna()
-        ]
+        ].copy()
 
         daily_summary = (
             daily
@@ -1354,10 +1473,11 @@ elif page == "04  Dashboard":
             .agg(
                 Count=(
                     "判斷出勤after leave",
-                    lambda values:
-                    (values == "Absent").sum()
+                    lambda values: (
+                        values == "Absent"
+                    ).sum()
                 ),
-                Total=(
+                Scheduled=(
                     "判斷出勤after leave",
                     lambda values:
                     values.isin(
@@ -1370,7 +1490,7 @@ elif page == "04  Dashboard":
 
         daily_summary["Percentage"] = (
             daily_summary["Count"]
-            / daily_summary["Total"]
+            / daily_summary["Scheduled"]
             .replace(0, pd.NA)
             * 100
         ).fillna(0)
@@ -1380,36 +1500,43 @@ elif page == "04  Dashboard":
             x="Date",
             y=daily_mode,
             markers=True,
-            title=f"Daily Absence Trend — {daily_mode}",
+            title=(
+                f"Daily Absence Trend — "
+                f"{daily_mode}"
+            ),
+        )
+
+        fig_daily.update_traces(
+            line=dict(width=3),
+            marker=dict(size=9),
+            hovertemplate=(
+                "<b>%{x}</b><br>"
+                + (
+                    "Absence rate: %{y:.2f}%"
+                    if daily_mode == "Percentage"
+                    else "Absent shifts: %{y:,}"
+                )
+                + "<extra></extra>"
+            ),
         )
 
         fig_daily.update_layout(
             xaxis_title="",
             yaxis_title=(
-                "Percentage (%)"
+                "Absence rate (%)"
                 if daily_mode == "Percentage"
-                else "Count"
+                else "Absent shifts"
             ),
-            height=430,
+            height=480,
             margin=dict(
-                l=20,
-                r=20,
-                t=60,
-                b=20
+                l=50,
+                r=40,
+                t=70,
+                b=60,
             ),
-        )
-
-        fig_daily.update_traces(
-            hovertemplate=(
-                "<b>%{x}</b><br>"
-                + (
-                    "Percentage: %{y:.2f}%"
-                    if daily_mode
-                    == "Percentage"
-                    else "Count: %{y}"
-                )
-                + "<extra></extra>"
-            )
+            xaxis=dict(
+                automargin=True,
+            ),
         )
 
         st.plotly_chart(
@@ -1424,7 +1551,14 @@ elif page == "04  Dashboard":
         )
 
         st.dataframe(
-            daily_table,
+            daily_table[
+                [
+                    "Date",
+                    "Count",
+                    "Scheduled",
+                    "Percentage",
+                ]
+            ],
             use_container_width=True,
             hide_index=True,
         )
