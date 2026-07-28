@@ -819,7 +819,6 @@ elif page == "02  Attendance & Absenteeism":
     ]
     display_columns = [column for column in preferred_columns if column in filtered.columns]
 
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
     st.dataframe(
         filtered,
         use_container_width=True,
@@ -832,7 +831,6 @@ elif page == "02  Attendance & Absenteeism":
         file_name="Ingrasys_Singapore_HR_Analysis.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 # ============================================================
