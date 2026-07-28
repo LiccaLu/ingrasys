@@ -1642,7 +1642,7 @@ These records require attendance verification.
             hide_index=True,
         )
 
-        else:
+    else:
             st.info(
                 "Attendance date column is unavailable."
             )
@@ -1650,7 +1650,7 @@ These records require attendance verification.
     # ============================================================
     # 05 HISTORY
     # ============================================================
-        elif page == "05  History":
+elif page == "05  History":
             page_header(
                 "History",
                 "Files processed during the current browser session.",
