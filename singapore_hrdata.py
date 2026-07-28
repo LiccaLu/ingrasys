@@ -608,7 +608,7 @@ else:
 # ============================================================
 if page == "01  Upload":
     page_header(
-        "Upload"
+        "Upload",
     )
 
     with col1:
