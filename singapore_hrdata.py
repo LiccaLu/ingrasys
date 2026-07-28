@@ -1058,64 +1058,11 @@ elif page == "04  Dashboard":
             .str.replace(r"\s*-\s*", " - ", regex=True)
         )
 
-    # Convert attendance date to a normalized daily value
-    df["Attendance Day"] = pd.to_datetime(
-        df["考勤日期"],
-        errors="coerce",
-    ).dt.normalize()
-
-    df = df[
-        df["工號"].notna()
-        & df["Attendance Day"].notna()
+    working_df = df[
+        df["判斷出勤after leave"].isin(WORKING_STATUSES)
     ].copy()
 
-    # One employee + one attendance date = one employee-day.
-    # If duplicate rows exist, retain the most important daily outcome.
-    status_priority = {
-        "Absent": 1,
-        "Forgot Clock-in": 2,
-        "Forgot Clock-out": 3,
-        "Leave Approved": 4,
-        "Normal": 5,
-        "No schedule": 6,
-    }
-
-    df["_status_priority"] = (
-        df["判斷出勤after leave"]
-        .map(status_priority)
-        .fillna(99)
-    )
-
-    employee_day_df = (
-        df
-        .sort_values(
-            ["工號", "Attendance Day", "_status_priority"]
-        )
-        .drop_duplicates(
-            subset=["工號", "Attendance Day"],
-            keep="first",
-        )
-        .drop(columns="_status_priority")
-        .reset_index(drop=True)
-    )
-
-    # Scheduled employee-days include approved leave because the employee
-    # had a scheduled workday, but approved leave is not counted as absent.
-    scheduled_day_statuses = [
-        "Normal",
-        "Leave Approved",
-        "Absent",
-        "Forgot Clock-in",
-        "Forgot Clock-out",
-    ]
-
-    working_df = employee_day_df[
-        employee_day_df["判斷出勤after leave"].isin(
-            scheduled_day_statuses
-        )
-    ].copy()
-
-    status = employee_day_df["判斷出勤after leave"]
+    status = df["判斷出勤after leave"]
 
     scheduled_shifts = len(working_df)
     absent_shifts = int(
@@ -1151,9 +1098,9 @@ elif page == "04  Dashboard":
 
     with c1:
         metric_card(
-            "Absence Employee-Day Rate",
+            "Absence Shift Rate",
             f"{absence_shift_rate:.2f}%",
-            f"{absent_shifts:,} / {scheduled_shifts:,} employee-days",
+            f"{absent_shifts:,} / {scheduled_shifts:,} shifts",
         )
 
     with c2:
@@ -1168,7 +1115,7 @@ elif page == "04  Dashboard":
         metric_card(
             "Leave Approved",
             f"{leave_approved_count:,}",
-            "Approved employee-days",
+            "Covered attendance shifts",
         )
 
     with c4:
@@ -1186,15 +1133,12 @@ elif page == "04  Dashboard":
     with st.expander("ℹ️ KPI Definitions", expanded=False):
         st.markdown(
             """
-### Absence Employee-Day Rate
-The percentage of scheduled **employee-days** finally classified as
-**Absent**.
+### Absence Shift Rate
+The percentage of scheduled shifts finally classified as **Absent**.
 
-> **Absent employee-days ÷ scheduled employee-days × 100%**
+> **Absent shifts ÷ scheduled shifts × 100%**
 
-Each employee is counted only once on each attendance date.
-`No schedule` is excluded. `Leave Approved` remains a scheduled
-employee-day but is not counted as absent.
+`No schedule` and `Leave Approved` are excluded from the denominator.
 
 ### Absent Employee Rate
 The percentage of unique scheduled employees with at least one
@@ -1202,14 +1146,7 @@ The percentage of unique scheduled employees with at least one
 
 > **Unique absent employees ÷ unique scheduled employees × 100%**
 
-Each employee is counted once for this employee-level rate, even when
-they have several absent employee-days.
-
-### Duplicate handling
-If the Attendance file contains multiple rows for the same employee on
-the same date, the dashboard keeps one daily outcome using this priority:
-
-**Absent → Forgot Clock-in → Forgot Clock-out → Leave Approved → Normal → No schedule**
+Each employee is counted once, even when they have several absent shifts.
 
 ### Leave Approved
 Attendance records originally classified as **Absent** that overlap an
@@ -1228,12 +1165,12 @@ A scheduled shift has an actual clock-in, but no actual clock-out.
     # Attendance Status card
     with st.container(border=True):
         st.markdown(
-            '<div class="dashboard-section-title">Attendance Status by Employee-Day</div>',
+            '<div class="dashboard-section-title">Attendance Status</div>',
             unsafe_allow_html=True,
         )
         st.markdown(
             '<div class="dashboard-section-note">'
-            'Distribution of final attendance outcomes by employee-day.'
+            'Distribution of final scheduled attendance outcomes.'
             '</div>',
             unsafe_allow_html=True,
         )
@@ -1246,8 +1183,9 @@ A scheduled shift has an actual clock-in, but no actual clock-out.
             label_visibility="collapsed",
         )
 
-        status_for_chart = working_df[
-            "判斷出勤after leave"
+        status_for_chart = df.loc[
+            df["判斷出勤after leave"] != "No schedule",
+            "判斷出勤after leave",
         ]
 
         status_order_for_chart = [
@@ -1320,7 +1258,7 @@ A scheduled shift has an actual clock-in, but no actual clock-out.
                     text=(
                         f"<b>{total_status_count:,}</b>"
                         "<br><span style='font-size:12px;color:#758196'>"
-                        "Employee-days"
+                        "Scheduled shifts"
                         "</span>"
                     ),
                     x=0.5,
@@ -1375,7 +1313,7 @@ A scheduled shift has an actual clock-in, but no actual clock-out.
             )
             st.markdown(
                 '<div class="dashboard-section-note">'
-                'Absent employee-days divided by scheduled employee-days.'
+                'Compare absent shifts and true absence rate by department.'
                 '</div>',
                 unsafe_allow_html=True,
             )
@@ -1389,7 +1327,9 @@ A scheduled shift has an actual clock-in, but no actual clock-out.
                     label_visibility="collapsed",
                 )
 
-                department_working = working_df.copy()
+                department_working = df[
+                    df["判斷出勤after leave"].isin(WORKING_STATUSES)
+                ].copy()
 
                 dept_absent_summary = (
                     department_working
@@ -1510,7 +1450,7 @@ A scheduled shift has an actual clock-in, but no actual clock-out.
             )
             st.markdown(
                 '<div class="dashboard-section-note">'
-                'Approved leave employee-days by leave type.'
+                'Distribution of attendance shifts covered by approved leave.'
                 '</div>',
                 unsafe_allow_html=True,
             )
@@ -1523,9 +1463,8 @@ A scheduled shift has an actual clock-in, but no actual clock-out.
                 label_visibility="collapsed",
             )
 
-            leave_approved_df = employee_day_df[
-                employee_day_df["判斷出勤after leave"]
-                == "Leave Approved"
+            leave_approved_df = df[
+                df["判斷出勤after leave"] == "Leave Approved"
             ].copy()
 
             if (
@@ -1651,7 +1590,7 @@ A scheduled shift has an actual clock-in, but no actual clock-out.
         )
         st.markdown(
             '<div class="dashboard-section-note">'
-            'Each date uses one record per employee for that attendance day.'
+            'Daily absent shifts or absence rate across the selected period.'
             '</div>',
             unsafe_allow_html=True,
         )
@@ -1665,11 +1604,11 @@ A scheduled shift has an actual clock-in, but no actual clock-out.
                 label_visibility="collapsed",
             )
 
-            daily = working_df.copy()
+            daily = df.copy()
             daily["Date"] = pd.to_datetime(
-                daily["Attendance Day"],
+                daily["考勤日期"],
                 errors="coerce",
-            ).dt.normalize()
+            ).dt.date
 
             daily = daily[daily["Date"].notna()].copy()
 
@@ -1682,12 +1621,9 @@ A scheduled shift has an actual clock-in, but no actual clock-out.
                         lambda values: (values == "Absent").sum(),
                     ),
                     Scheduled=(
-                        "工號",
-                        "size",
-                    ),
-                    Employees=(
-                        "工號",
-                        "nunique",
+                        "判斷出勤after leave",
+                        lambda values:
+                        values.isin(WORKING_STATUSES).sum(),
                     ),
                 )
                 .reset_index()
@@ -1703,12 +1639,6 @@ A scheduled shift has an actual clock-in, but no actual clock-out.
                 daily_summary,
                 x="Date",
                 y=daily_mode,
-                custom_data=[
-                    "Count",
-                    "Scheduled",
-                    "Employees",
-                    "Percentage",
-                ],
             )
 
             fig_daily.update_traces(
@@ -1724,12 +1654,13 @@ A scheduled shift has an actual clock-in, but no actual clock-out.
                 ),
                 mode="lines+markers",
                 hovertemplate=(
-                    "<b>%{x|%Y-%m-%d}</b><br>"
-                    "Absent employee-days: %{customdata[0]:,}<br>"
-                    "Scheduled employee-days: %{customdata[1]:,}<br>"
-                    "Unique employees: %{customdata[2]:,}<br>"
-                    "Absence rate: %{customdata[3]:.2f}%"
-                    "<extra></extra>"
+                    "<b>%{x}</b><br>"
+                    + (
+                        "Absence rate: %{y:.2f}%"
+                        if daily_mode == "Percentage"
+                        else "Absent shifts: %{y:,}"
+                    )
+                    + "<extra></extra>"
                 ),
             )
 
@@ -1740,20 +1671,12 @@ A scheduled shift has an actual clock-in, but no actual clock-out.
             )
 
             fig_daily.update_layout(
-                title=None,
-                xaxis_title="Attendance date",
+                xaxis_title="",
                 yaxis_title=(
                     "Absence rate (%)"
                     if daily_mode == "Percentage"
-                    else "Absent employee-days"
+                    else "Absent shifts"
                 ),
-            )
-
-            fig_daily.update_xaxes(
-                type="date",
-                tickformat="%d %b",
-                dtick="D1",
-                tickangle=-35,
             )
 
             st.plotly_chart(
@@ -1773,7 +1696,6 @@ A scheduled shift has an actual clock-in, but no actual clock-out.
                         "Date",
                         "Count",
                         "Scheduled",
-                        "Employees",
                         "Percentage",
                     ]
                 ],
