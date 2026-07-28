@@ -1027,83 +1027,83 @@ elif page == "04  Dashboard":
         )
 
 
-# ========================================================
-# KPI Definitions
-# ========================================================
-with st.expander("ℹ️ KPI Definitions", expanded=False):
-
-    st.markdown("""
-### 📊 Absence Shift Rate
-**Definition**
-
-Percentage of scheduled shifts that were finally classified as **Absent**.
-
-**Formula**
-
-> Absence Shift Rate =  
-> (Absent Shifts ÷ Scheduled Shifts) × 100%
-
-**Current calculation**
-
-- **Scheduled Shifts** = Attendance records with a work schedule
-  (excluding **No schedule**)
-- **Absent Shifts** = Records where **Attendance Status = Absent**
-
----
-
-### 👤 Absent Employee Rate
-**Definition**
-
-Percentage of employees who had **at least one Absent record** during the selected attendance period.
-
-Each employee is counted **only once**, even if the employee was absent multiple times.
-
-**Formula**
-
-> Absent Employee Rate =  
-> (Unique Employees with Absent Records ÷ Unique Scheduled Employees) × 100%
-
----
-
-### ✅ Leave Approved
-
-Attendance records originally classified as **Absent** but successfully matched with an approved leave application (AL or Other Leave).
-
-These records are automatically changed from **Absent** to **Leave Approved** after leave matching.
-
----
-
-### 🕒 Forgot Clock-in
-
-Employees who:
-
-- have a scheduled shift
-- missing clock-in time
-- clock-out exists
-
-These records require attendance verification.
-
----
-
-### 🕖 Forgot Clock-out
-
-Employees who:
-
-- have a scheduled shift
-- clock-in exists
-- missing clock-out time
-
-These records require attendance verification.
-
----
-
-### 📌 Notes
-
-- **No schedule** records are excluded when calculating absence rates.
-- **Leave Approved** records are **not counted as Absent**.
-- **Absence Shift Rate** counts every scheduled shift.
-- **Absent Employee Rate** counts each employee only once regardless of how many absences they have.
-""")
+    # ========================================================
+    # KPI Definitions
+    # ========================================================
+    with st.expander("ℹ️ KPI Definitions", expanded=False):
+    
+        st.markdown("""
+    ### 📊 Absence Shift Rate
+    **Definition**
+    
+    Percentage of scheduled shifts that were finally classified as **Absent**.
+    
+    **Formula**
+    
+    > Absence Shift Rate =  
+    > (Absent Shifts ÷ Scheduled Shifts) × 100%
+    
+    **Current calculation**
+    
+    - **Scheduled Shifts** = Attendance records with a work schedule
+      (excluding **No schedule**)
+    - **Absent Shifts** = Records where **Attendance Status = Absent**
+    
+    ---
+    
+    ### 👤 Absent Employee Rate
+    **Definition**
+    
+    Percentage of employees who had **at least one Absent record** during the selected attendance period.
+    
+    Each employee is counted **only once**, even if the employee was absent multiple times.
+    
+    **Formula**
+    
+    > Absent Employee Rate =  
+    > (Unique Employees with Absent Records ÷ Unique Scheduled Employees) × 100%
+    
+    ---
+    
+    ### ✅ Leave Approved
+    
+    Attendance records originally classified as **Absent** but successfully matched with an approved leave application (AL or Other Leave).
+    
+    These records are automatically changed from **Absent** to **Leave Approved** after leave matching.
+    
+    ---
+    
+    ### 🕒 Forgot Clock-in
+    
+    Employees who:
+    
+    - have a scheduled shift
+    - missing clock-in time
+    - clock-out exists
+    
+    These records require attendance verification.
+    
+    ---
+    
+    ### 🕖 Forgot Clock-out
+    
+    Employees who:
+    
+    - have a scheduled shift
+    - clock-in exists
+    - missing clock-out time
+    
+    These records require attendance verification.
+    
+    ---
+    
+    ### 📌 Notes
+    
+    - **No schedule** records are excluded when calculating absence rates.
+    - **Leave Approved** records are **not counted as Absent**.
+    - **Absence Shift Rate** counts every scheduled shift.
+    - **Absent Employee Rate** counts each employee only once regardless of how many absences they have.
+    """)
     
     st.divider()
 
