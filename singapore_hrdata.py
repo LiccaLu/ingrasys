@@ -1780,14 +1780,22 @@ A scheduled shift has an actual clock-in, but no actual clock-out.
                     daily_summary["Percentage"],
                 )
             ],
-        
-            textposition="top center",
+            text_positions = [
+                "top right"
+                if index == 0
+                else "top left"
+                if index == len(daily_summary) - 1
+                else "top center"
+                for index in range(len(daily_summary))
+            ]
+            
+            textposition=text_positions,
         
             textfont=dict(
                 size=11,
                 color="#243247",
             ),
-            
+            cliponaxis=False,
             hovertemplate=(
                 "<b>%{x|%Y-%m-%d}</b><br>"
                 "Absent shifts: %{customdata[0]:,}<br>"
@@ -1812,7 +1820,13 @@ A scheduled shift has an actual clock-in, but no actual clock-out.
                 if daily_mode == "Percentage"
                 else "Absent shifts"
             ),
-        )
+            margin=dict(
+            l=110,
+            r=110,
+            t=130,
+            b=70,
+        ),
+    )
 
         fig_daily.update_xaxes(
             type="date",
