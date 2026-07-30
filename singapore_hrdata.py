@@ -196,9 +196,10 @@ st.markdown(
         line-height: 1.55;
     }
 
-    footer, #MainMenu, header {
-        visibility: hidden;
-    }
+    footer,
+        #MainMenu {
+            visibility: hidden;
+        }
     /* Dashboard cards */
     [data-testid="stVerticalBlockBorderWrapper"] {
         background: #ffffff;
