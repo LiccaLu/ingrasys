@@ -1754,6 +1754,15 @@ A scheduled shift has an actual clock-in, but no actual clock-out.
             ],
         )
 
+        text_positions = [
+                "top right"
+                if index == 0
+                else "top left"
+                if index == len(daily_summary) - 1
+                else "top center"
+                for index in range(len(daily_summary))
+            ],
+        
         fig_daily.update_traces(
             line=dict(
                 width=3,
@@ -1779,15 +1788,6 @@ A scheduled shift has an actual clock-in, but no actual clock-out.
                     daily_summary["Scheduled"],
                     daily_summary["Percentage"],
                 )
-            ],
-            
-            text_positions = [
-                "top right"
-                if index == 0
-                else "top left"
-                if index == len(daily_summary) - 1
-                else "top center"
-                for index in range(len(daily_summary))
             ],
             
             textposition=text_positions,
