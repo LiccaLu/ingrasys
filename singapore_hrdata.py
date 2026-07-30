@@ -557,42 +557,92 @@ def read_and_process(attendance_file, leave_file):
         )
 
     leave_excel = pd.ExcelFile(leave_file)
-
-    # AL is optional
+    
+    # ------------------------------------------------------------
+    # Read AL sheet if it exists
+    # ------------------------------------------------------------
     if "AL" in leave_excel.sheet_names:
-        al = pd.read_excel(
+        al_raw = pd.read_excel(
             leave_file,
             sheet_name="AL",
         )
-        al.columns = al.columns.astype(str).str.strip()
+        al_raw.columns = (
+            al_raw.columns
+            .astype(str)
+            .str.strip()
+        )
     else:
-        al = pd.DataFrame()
+        al_raw = pd.DataFrame()
     
-    # Other Leave is also optional
+    # ------------------------------------------------------------
+    # Read Other Leave sheet if it exists
+    # ------------------------------------------------------------
     if "Other Leave" in leave_excel.sheet_names:
-        other = pd.read_excel(
+        other_raw = pd.read_excel(
             leave_file,
             sheet_name="Other Leave",
         )
-        other.columns = other.columns.astype(str).str.strip()
+        other_raw.columns = (
+            other_raw.columns
+            .astype(str)
+            .str.strip()
+        )
     else:
-        other = pd.DataFrame()
+        other_raw = pd.DataFrame()
     
-    # At least one leave sheet should exist
-    if al.empty and other.empty:
+    # At least one usable leave sheet must exist
+    if al_raw.empty and other_raw.empty:
         raise ValueError(
             "Leave file does not contain usable AL or Other Leave data."
         )
-
-    al = clean_leave_sheet(al_raw, "AL")
-    other = clean_leave_sheet(other_raw, "Other Leave")
-
-    attendance["工號"] = normalize_id(attendance["工號"])
+    
+    # ------------------------------------------------------------
+    # Clean only the sheets that contain data
+    # ------------------------------------------------------------
+    if not al_raw.empty:
+        al = clean_leave_sheet(
+            al_raw,
+            "AL",
+        )
+    else:
+        al = pd.DataFrame(
+            columns=[
+                "empid",
+                "Leave Type",
+                "Leave Start",
+                "Leave End",
+                "Leave Source",
+            ]
+        )
+    
+    if not other_raw.empty:
+        other = clean_leave_sheet(
+            other_raw,
+            "Other Leave",
+        )
+    else:
+        other = pd.DataFrame(
+            columns=[
+                "empid",
+                "Leave Type",
+                "Leave Start",
+                "Leave End",
+                "Leave Source",
+            ]
+        )
+    
+    # ------------------------------------------------------------
+    # Process Attendance
+    # ------------------------------------------------------------
+    attendance["工號"] = normalize_id(
+        attendance["工號"]
+    )
+    
     attendance["判斷出勤before leave"] = attendance.apply(
         check_attendance,
         axis=1,
     )
-
+    
     result_columns = [
         "判斷出勤after leave",
         "Leave Type",
@@ -600,12 +650,17 @@ def read_and_process(attendance_file, leave_file):
         "Matched Leave End",
         "Leave Source",
     ]
-
+    
     attendance[result_columns] = attendance.apply(
-        lambda row: compare_with_leave(row, al, other),
+        lambda row: compare_with_leave(
+            row,
+            al,
+            other,
+        ),
         axis=1,
+        result_type="expand",
     )
-
+    
     return attendance, al, other, attendance_sheet
 
 
