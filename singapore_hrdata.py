@@ -34,10 +34,16 @@ st.markdown(
         --danger: #b42318;
     }
 
+    /* --------------------------------------------------------
+       APP
+    -------------------------------------------------------- */
     .stApp {
         background: var(--bg);
     }
 
+    /* --------------------------------------------------------
+       SIDEBAR
+    -------------------------------------------------------- */
     [data-testid="stSidebar"] {
         background: #ffffff;
         border-right: 1px solid var(--border);
@@ -67,7 +73,7 @@ st.markdown(
         line-height: 1.45;
     }
 
-    /* Make the sidebar radio look like large bookmarks */
+    /* Make sidebar radio options look like bookmarks */
     [data-testid="stSidebar"] div[role="radiogroup"] {
         gap: 0.65rem;
     }
@@ -111,6 +117,9 @@ st.markdown(
         display: none;
     }
 
+    /* --------------------------------------------------------
+       PAGE TEXT
+    -------------------------------------------------------- */
     .page-title {
         font-size: 2.05rem;
         font-weight: 900;
@@ -133,6 +142,9 @@ st.markdown(
         margin-bottom: 0.8rem;
     }
 
+    /* --------------------------------------------------------
+       PANELS AND METRICS
+    -------------------------------------------------------- */
     .panel {
         background: var(--card);
         border: 1px solid var(--border);
@@ -173,6 +185,9 @@ st.markdown(
         margin-top: 0.35rem;
     }
 
+    /* --------------------------------------------------------
+       FILE UPLOADER
+    -------------------------------------------------------- */
     div[data-testid="stFileUploader"] section {
         background: #fafbfc;
         border: 1.5px dashed #b8c0cc;
@@ -180,12 +195,18 @@ st.markdown(
         padding: 1.4rem;
     }
 
+    /* --------------------------------------------------------
+       DATAFRAME
+    -------------------------------------------------------- */
     [data-testid="stDataFrame"] {
         border: 1px solid var(--border);
         border-radius: 12px;
         overflow: hidden;
     }
 
+    /* --------------------------------------------------------
+       RULE BOX
+    -------------------------------------------------------- */
     .rule-box {
         background: #eef3f9;
         border: 1px solid #d4dfed;
@@ -196,11 +217,9 @@ st.markdown(
         line-height: 1.55;
     }
 
-    footer,
-        #MainMenu {
-            visibility: hidden;
-        }
-    /* Dashboard cards */
+    /* --------------------------------------------------------
+       DASHBOARD CARDS
+    -------------------------------------------------------- */
     [data-testid="stVerticalBlockBorderWrapper"] {
         background: #ffffff;
         border: 1px solid #e4e9f0 !important;
@@ -235,25 +254,69 @@ st.markdown(
         font-size: 0.86rem;
     }
 
-    header[data-testid="stHeader"] {
-        visibility: visible !important;
-        background: transparent !important;
-    }
+    /* --------------------------------------------------------
+       STREAMLIT HEADER AND SIDEBAR TOGGLE
+    -------------------------------------------------------- */
 
-    [data-testid="stToolbar"] {
+    /* Hide menu and footer only */
+    #MainMenu,
+    footer {
         visibility: hidden !important;
     }
 
+    /* Never hide the complete header */
+    header[data-testid="stHeader"] {
+        visibility: visible !important;
+        display: block !important;
+        background: transparent !important;
+    }
+
+    /* Keep the toolbar container alive */
+    [data-testid="stToolbar"] {
+        visibility: visible !important;
+        display: flex !important;
+        background: transparent !important;
+    }
+
+    /* Hide only right-side toolbar actions */
+    [data-testid="stToolbarActions"] {
+        visibility: hidden !important;
+    }
+
+    /* Sidebar collapse button when sidebar is open */
+    [data-testid="stSidebarCollapseButton"] {
+        visibility: visible !important;
+        display: flex !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+    }
+
+    /* Sidebar expand button when sidebar is closed */
+    [data-testid="stSidebarCollapsedControl"],
     [data-testid="collapsedControl"] {
         visibility: visible !important;
         display: flex !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        z-index: 999999 !important;
+    }
+
+    /* Some Streamlit versions place the control inside this container */
+    [data-testid="stHeaderActionElements"] {
+        visibility: visible !important;
+    }
+
+    /* Keep buttons inside the header clickable */
+    header[data-testid="stHeader"] button {
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
     }
 
     </style>
     """,
     unsafe_allow_html=True,
 )
-
 
 # ============================================================
 # SESSION STATE
