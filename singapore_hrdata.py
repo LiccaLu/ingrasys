@@ -1799,12 +1799,27 @@ A scheduled shift has an actual clock-in, but no actual clock-out.
         )
 
         st.plotly_chart(
-            fig_daily,
-            use_container_width=True,
-            config={
-                "displayModeBar": False,
-            },
-        )
+    fig_daily,
+    use_container_width=True,
+    config={
+        "displayModeBar": True,
+        "displaylogo": False,
+        "toImageButtonOptions": {
+            "format": "png",
+            "filename": "Daily_Absence_Trend",
+            "height": 700,
+            "width": 1400,
+            "scale": 2,
+        },
+
+        "modeBarButtonsToRemove": [
+            "lasso2d",
+            "select2d",
+            "autoScale2d",
+            "toggleSpikelines",
+        ],
+    },
+)
 
         daily_table = daily_summary.copy()
 
