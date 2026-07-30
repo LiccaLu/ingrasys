@@ -1766,6 +1766,27 @@ A scheduled shift has an actual clock-in, but no actual clock-out.
                 color="#3957A5",
             ),
             mode="lines+markers",
+
+                text=[
+        (
+            f"Count: {count}<br>"
+            f"Scheduled: {scheduled}<br>"
+            f"{percentage:.2f}%"
+        )
+        for count, scheduled, percentage in zip(
+            daily_summary["Count"],
+            daily_summary["Scheduled"],
+            daily_summary["Percentage"],
+        )
+    ],
+        
+            textposition="top center",
+        
+            textfont=dict(
+                size=11,
+                color="#243247",
+            ),
+            
             hovertemplate=(
                 "<b>%{x|%Y-%m-%d}</b><br>"
                 "Absent shifts: %{customdata[0]:,}<br>"
