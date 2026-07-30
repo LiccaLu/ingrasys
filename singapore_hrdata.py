@@ -1363,9 +1363,11 @@ A scheduled shift has an actual clock-in, but no actual clock-out.
         )
 
     st.write("")
-    # ========================================================
+
     # Absence and Scheduled Shifts by Department and Date
-    # ========================================================
+
+    left, right = st.columns(2, gap="large")
+    
     with left:
         with st.container(border=True):
             st.markdown(
