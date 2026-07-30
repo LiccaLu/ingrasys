@@ -1717,8 +1717,9 @@ A scheduled shift has an actual clock-in, but no actual clock-out.
             show_legend=False,
         )
 
+        
         fig_daily.update_layout(
-            title=None,
+            title="",
             xaxis_title="",
             yaxis_title=(
                 "Absence rate (%)"
