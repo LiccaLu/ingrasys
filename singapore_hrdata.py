@@ -1761,7 +1761,7 @@ A scheduled shift has an actual clock-in, but no actual clock-out.
                 if index == len(daily_summary) - 1
                 else "top center"
                 for index in range(len(daily_summary))
-            ],
+            ]
         
         fig_daily.update_traces(
             line=dict(
