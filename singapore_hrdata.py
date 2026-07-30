@@ -558,13 +558,31 @@ def read_and_process(attendance_file, leave_file):
 
     leave_excel = pd.ExcelFile(leave_file)
 
-    if "AL" not in leave_excel.sheet_names:
-        raise ValueError("Leave file does not contain an AL sheet.")
-    if "Other Leave" not in leave_excel.sheet_names:
-        raise ValueError("Leave file does not contain an Other Leave sheet.")
-
-    al_raw = pd.read_excel(leave_file, sheet_name="AL")
-    other_raw = pd.read_excel(leave_file, sheet_name="Other Leave")
+    # AL is optional
+    if "AL" in leave_excel.sheet_names:
+        al = pd.read_excel(
+            leave_file,
+            sheet_name="AL",
+        )
+        al.columns = al.columns.astype(str).str.strip()
+    else:
+        al = pd.DataFrame()
+    
+    # Other Leave is also optional
+    if "Other Leave" in leave_excel.sheet_names:
+        other = pd.read_excel(
+            leave_file,
+            sheet_name="Other Leave",
+        )
+        other.columns = other.columns.astype(str).str.strip()
+    else:
+        other = pd.DataFrame()
+    
+    # At least one leave sheet should exist
+    if al.empty and other.empty:
+        raise ValueError(
+            "Leave file does not contain usable AL or Other Leave data."
+        )
 
     al = clean_leave_sheet(al_raw, "AL")
     other = clean_leave_sheet(other_raw, "Other Leave")
