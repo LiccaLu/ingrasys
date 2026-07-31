@@ -1230,24 +1230,9 @@ elif page == "04  Dashboard":
     forgot_clock_in_count = int((status == "Forgot Clock-in").sum())
     forgot_clock_out_count = int((status == "Forgot Clock-out").sum())
 
-    with st.expander("ℹ️ Data & Definitions", expanded=False):
+    with st.expander("ℹ️ Data & Graphs Descriptions", expanded=False):
         st.markdown(
             """
-### Absence Shift Rate
-The percentage of scheduled shifts finally classified as **Absent**.
-
-> **Absent shifts ÷ scheduled shifts × 100%**
-
-`No schedule` and `Leave Approved` are excluded from the denominator.
-
-### Absent Employee Rate
-The percentage of unique scheduled employees with at least one
-**Absent** record.
-
-> **Unique absent employees ÷ unique scheduled employees × 100%**
-
-Each employee is counted once, even when they have several absent shifts.
-
 ### Leave Approved
 Attendance records originally classified as **Absent** that overlap an
 approved AL or Other Leave period.
@@ -1257,6 +1242,42 @@ A scheduled shift has no actual clock-in, but an actual clock-out exists.
 
 ### Forgot Clock-out
 A scheduled shift has an actual clock-in, but no actual clock-out.
+
+### Daily Absence Trend
+
+This chart summarizes overall attendance performance across the selected reporting period.
+
+- **X-axis:** Attendance date.
+- **Y-axis:** Number of absent shifts or absence rate (%), depending on the selected view.
+- **Count mode:** Displays the total number of employees recorded as absent each day.
+- **Percentage mode:** Displays the daily absence rate, calculated as:
+
+  **Absent shifts ÷ Scheduled shifts × 100**
+
+Each data point also displays:
+- Absent shifts
+- Scheduled shifts
+- Daily absence rate
+
+This visualization helps identify attendance trends, unusual spikes, and changes in absence levels over time.
+
+---
+
+### Daily Attendance by Department
+
+This chart compares attendance performance across departments for the selected attendance date.
+
+- **Scheduled and Absent mode:** Shows the total scheduled shifts alongside the number of absent shifts for each department.
+- **Absence Percentage mode:** Shows the percentage of scheduled shifts that were absent for each department.
+
+The accompanying table includes:
+- Attendance date
+- Department
+- Scheduled shifts
+- Absent shifts
+- Absence percentage
+
+This visualization helps compare department performance, identify departments with higher absence levels, and determine whether absences are driven by workforce size or by a higher absence rate.
             """
         )
 
