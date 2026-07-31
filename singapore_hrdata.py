@@ -1927,24 +1927,58 @@ elif page == "05  History":
     # --------------------------------------------------------
     # Create selection labels
     # --------------------------------------------------------
-    history_labels = [
-        (
-            f"{pd.to_datetime(item['Period Start']).strftime('%Y-%m-%d')}"
-            f" to "
-            f"{pd.to_datetime(item['Period End']).strftime('%Y-%m-%d')}"
-            f" — {item['Attendance File']}"
+    history_labels = []
+
+    for item in st.session_state.history:
+        period_start = pd.to_datetime(
+            item.get("Period Start"),
+            errors="coerce",
         )
-        for item in st.session_state.history
-    ]
-
-    view_options = [
-        "Combine all processed weeks"
-    ] + history_labels
-
-    selected_label = st.selectbox(
-        "Open processed result",
-        view_options,
-    )
+    
+        period_end = pd.to_datetime(
+            item.get("Period End"),
+            errors="coerce",
+        )
+    
+        if pd.notna(period_start) and pd.notna(period_end):
+            period_text = (
+                f"{period_start:%Y-%m-%d} to "
+                f"{period_end:%Y-%m-%d}"
+            )
+        else:
+            # 舊的 history 沒有 Period Start / Period End
+            item_data = item.get("data", pd.DataFrame())
+    
+            if (
+                isinstance(item_data, pd.DataFrame)
+                and not item_data.empty
+                and "考勤日期" in item_data.columns
+            ):
+                attendance_dates = pd.to_datetime(
+                    item_data["考勤日期"],
+                    errors="coerce",
+                ).dropna()
+    
+                if not attendance_dates.empty:
+                    period_start = attendance_dates.min().normalize()
+                    period_end = attendance_dates.max().normalize()
+    
+                    # 補回舊 history，之後就可直接使用
+                    item["Period Start"] = period_start
+                    item["Period End"] = period_end
+    
+                    period_text = (
+                        f"{period_start:%Y-%m-%d} to "
+                        f"{period_end:%Y-%m-%d}"
+                    )
+                else:
+                    period_text = "Date unavailable"
+            else:
+                period_text = "Date unavailable"
+    
+        history_labels.append(
+            f"{period_text} — {item.get('Attendance File', 'Unknown file')}"
+        )
 
     # --------------------------------------------------------
     # Combine all weeks
