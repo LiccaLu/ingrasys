@@ -1838,48 +1838,84 @@ elif page == "05  History":
     )
 
     if not st.session_state.history:
-        st.info("No processed history is available yet.")
+        st.info(
+            "No processed history is available yet."
+        )
         st.stop()
 
-    # --------------------------------------------------------
-    # Convert stored timestamps to Taiwan time for display
-    # --------------------------------------------------------
     def to_taiwan_time(value):
         timestamp = pd.Timestamp(value)
 
-        # Streamlit Cloud usually stores naive datetime values in UTC
         if timestamp.tzinfo is None:
-            timestamp = timestamp.tz_localize("UTC")
-
-        return timestamp.tz_convert("Asia/Taipei")
-
-    # --------------------------------------------------------
-    # Build history summary table
-    # --------------------------------------------------------
-    history_table = pd.DataFrame(
-        [
-            {
-                key: value
-                for key, value in item.items()
-                if key != "data"
-            }
-            for item in st.session_state.history
-        ]
-    )
-
-    history_table["Processed At"] = (
-        history_table["Processed At"]
-        .apply(to_taiwan_time)
-        .apply(
-            lambda value: value.strftime(
-                "%Y-%m-%d %H:%M:%S"
+            timestamp = timestamp.tz_localize(
+                "Asia/Taipei"
             )
-        )
-    )
 
-    st.markdown(
-        '<div class="panel">',
-        unsafe_allow_html=True,
+        return timestamp.tz_convert(
+            "Asia/Taipei"
+        )
+
+    # --------------------------------------------------------
+    # Build history summary
+    # --------------------------------------------------------
+    history_rows = []
+
+    for item in st.session_state.history:
+        history_rows.append(
+            {
+                "Processed At": (
+                    to_taiwan_time(
+                        item["Processed At"]
+                    ).strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                ),
+                "Period Start": (
+                    pd.to_datetime(
+                        item.get("Period Start"),
+                        errors="coerce",
+                    ).strftime("%Y-%m-%d")
+                    if pd.notna(
+                        item.get("Period Start")
+                    )
+                    else ""
+                ),
+                "Period End": (
+                    pd.to_datetime(
+                        item.get("Period End"),
+                        errors="coerce",
+                    ).strftime("%Y-%m-%d")
+                    if pd.notna(
+                        item.get("Period End")
+                    )
+                    else ""
+                ),
+                "Attendance File": item[
+                    "Attendance File"
+                ],
+                "Leave File": item[
+                    "Leave File"
+                ],
+                "Attendance Rows": item[
+                    "Attendance Rows"
+                ],
+                "Absent": item[
+                    "Absent"
+                ],
+                "Leave Approved": item[
+                    "Leave Approved"
+                ],
+                "Forgot Clock-in": item[
+                    "Forgot Clock-in"
+                ],
+                "Forgot Clock-out": item[
+                    "Forgot Clock-out"
+                ],
+            }
+        )
+
+    history_table = pd.DataFrame(
+        history_rows
     )
 
     st.dataframe(
@@ -1889,42 +1925,97 @@ elif page == "05  History":
     )
 
     # --------------------------------------------------------
-    # Build Taiwan-time labels for result selector
+    # Create selection labels
     # --------------------------------------------------------
     history_labels = [
         (
-            f"{to_taiwan_time(item['Processed At']):%Y-%m-%d %H:%M}"
+            f"{pd.to_datetime(item['Period Start']).strftime('%Y-%m-%d')}"
+            f" to "
+            f"{pd.to_datetime(item['Period End']).strftime('%Y-%m-%d')}"
             f" — {item['Attendance File']}"
         )
         for item in st.session_state.history
     ]
 
+    view_options = [
+        "Combine all processed weeks"
+    ] + history_labels
+
     selected_label = st.selectbox(
         "Open processed result",
-        history_labels,
+        view_options,
     )
 
-    selected_index = history_labels.index(
-        selected_label
-    )
+    # --------------------------------------------------------
+    # Combine all weeks
+    # --------------------------------------------------------
+    if selected_label == "Combine all processed weeks":
+        combined_history = pd.concat(
+            [
+                item["data"].copy()
+                for item
+                in st.session_state.history
+            ],
+            ignore_index=True,
+        )
 
-    selected_item = (
-        st.session_state.history[selected_index]
-    )
+        # Remove identical employee/date/shift duplicates
+        duplicate_columns = [
+            column
+            for column in [
+                "工號",
+                "考勤日期",
+                "上段應上班時間",
+            ]
+            if column in combined_history.columns
+        ]
 
-    st.dataframe(
-        selected_item["data"],
-        use_container_width=True,
-        hide_index=True,
-        height=520,
-    )
+        if duplicate_columns:
+            combined_history = (
+                combined_history
+                .drop_duplicates(
+                    subset=duplicate_columns,
+                    keep="last",
+                )
+                .reset_index(drop=True)
+            )
 
-    st.markdown(
-        "</div>",
-        unsafe_allow_html=True,
-    )
+        st.caption(
+            f"Combined records: "
+            f"{len(combined_history):,}"
+        )
+
+        st.dataframe(
+            combined_history,
+            use_container_width=True,
+            hide_index=True,
+            height=520,
+        )
+
+    # --------------------------------------------------------
+    # Show one selected week
+    # --------------------------------------------------------
+    else:
+        selected_index = (
+            history_labels.index(
+                selected_label
+            )
+        )
+
+        selected_item = (
+            st.session_state.history[
+                selected_index
+            ]
+        )
+
+        st.dataframe(
+            selected_item["data"],
+            use_container_width=True,
+            hide_index=True,
+            height=520,
+        )
 
     st.caption(
-        "History is session-based in this GitHub/Streamlit version. "
+        "History is stored only during the current browser session. "
         "It clears when the app restarts. Permanent history requires a database."
     )
