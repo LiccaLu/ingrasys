@@ -1838,98 +1838,147 @@ elif page == "05  History":
     )
 
     if not st.session_state.history:
-        st.info(
-            "No processed history is available yet."
-        )
+        st.info("No processed history is available yet.")
         st.stop()
 
+    # --------------------------------------------------------
+    # Convert timestamps to Taiwan time
+    # --------------------------------------------------------
     def to_taiwan_time(value):
         timestamp = pd.Timestamp(value)
 
+        if pd.isna(timestamp):
+            return pd.NaT
+
+        # Current history records created with datetime.now()
+        # on Streamlit Cloud are usually naive UTC timestamps.
         if timestamp.tzinfo is None:
-            timestamp = timestamp.tz_localize(
-                "Asia/Taipei"
-            )
+            timestamp = timestamp.tz_localize("UTC")
 
-        return timestamp.tz_convert(
-            "Asia/Taipei"
-        )
+        return timestamp.tz_convert("Asia/Taipei")
 
     # --------------------------------------------------------
-    # Build history summary
+    # Recover missing period dates from the saved attendance data
     # --------------------------------------------------------
-    history_rows = []
-    
     for item in st.session_state.history:
         period_start = pd.to_datetime(
             item.get("Period Start"),
             errors="coerce",
         )
-    
         period_end = pd.to_datetime(
             item.get("Period End"),
             errors="coerce",
         )
-    
+
+        if pd.isna(period_start) or pd.isna(period_end):
+            item_data = item.get("data")
+
+            if (
+                isinstance(item_data, pd.DataFrame)
+                and not item_data.empty
+            ):
+                if "上段應上班時間" in item_data.columns:
+                    attendance_dates = pd.to_datetime(
+                        item_data["上段應上班時間"],
+                        errors="coerce",
+                    ).dropna()
+
+                elif "考勤日期" in item_data.columns:
+                    attendance_dates = pd.to_datetime(
+                        item_data["考勤日期"],
+                        errors="coerce",
+                    ).dropna()
+
+                else:
+                    attendance_dates = pd.Series(
+                        dtype="datetime64[ns]"
+                    )
+
+                if not attendance_dates.empty:
+                    item["Period Start"] = (
+                        attendance_dates.min().normalize()
+                    )
+                    item["Period End"] = (
+                        attendance_dates.max().normalize()
+                    )
+
+    # --------------------------------------------------------
+    # Build history summary table
+    # --------------------------------------------------------
+    history_rows = []
+
+    for item in st.session_state.history:
+        processed_at = to_taiwan_time(
+            item.get("Processed At")
+        )
+
+        period_start = pd.to_datetime(
+            item.get("Period Start"),
+            errors="coerce",
+        )
+        period_end = pd.to_datetime(
+            item.get("Period End"),
+            errors="coerce",
+        )
+
         history_rows.append(
             {
-                "Processed At": to_taiwan_time(
-                    item.get("Processed At")
-                ).strftime("%Y-%m-%d %H:%M:%S"),
-    
+                "Processed At": (
+                    processed_at.strftime("%Y-%m-%d %H:%M:%S")
+                    if pd.notna(processed_at)
+                    else ""
+                ),
                 "Period Start": (
                     period_start.strftime("%Y-%m-%d")
                     if pd.notna(period_start)
                     else ""
                 ),
-    
                 "Period End": (
                     period_end.strftime("%Y-%m-%d")
                     if pd.notna(period_end)
                     else ""
                 ),
-    
                 "Attendance File": item.get(
                     "Attendance File",
                     "",
                 ),
-    
                 "Leave File": item.get(
                     "Leave File",
                     "",
                 ),
-    
                 "Attendance Rows": item.get(
                     "Attendance Rows",
                     0,
                 ),
-    
                 "Absent": item.get(
                     "Absent",
                     0,
                 ),
-    
                 "Leave Approved": item.get(
                     "Leave Approved",
                     0,
                 ),
-    
                 "Forgot Clock-in": item.get(
                     "Forgot Clock-in",
                     0,
                 ),
-    
                 "Forgot Clock-out": item.get(
                     "Forgot Clock-out",
                     0,
                 ),
             }
         )
-    
+
     history_table = pd.DataFrame(history_rows)
 
+    st.dataframe(
+        history_table,
+        use_container_width=True,
+        hide_index=True,
+    )
+
     # --------------------------------------------------------
-    # Create selection labels
+    # Create labels for each processed period
     # --------------------------------------------------------
     history_labels = []
 
@@ -1938,79 +1987,100 @@ elif page == "05  History":
             item.get("Period Start"),
             errors="coerce",
         )
-    
         period_end = pd.to_datetime(
             item.get("Period End"),
             errors="coerce",
         )
-    
+
         if pd.notna(period_start) and pd.notna(period_end):
             period_text = (
                 f"{period_start:%Y-%m-%d} to "
                 f"{period_end:%Y-%m-%d}"
             )
         else:
-            # 舊的 history 沒有 Period Start / Period End
-            item_data = item.get("data", pd.DataFrame())
-    
-            if (
-                isinstance(item_data, pd.DataFrame)
-                and not item_data.empty
-                and "考勤日期" in item_data.columns
-            ):
-                attendance_dates = pd.to_datetime(
-                    item_data["考勤日期"],
-                    errors="coerce",
-                ).dropna()
-    
-                if not attendance_dates.empty:
-                    period_start = attendance_dates.min().normalize()
-                    period_end = attendance_dates.max().normalize()
-    
-                    # 補回舊 history，之後就可直接使用
-                    item["Period Start"] = period_start
-                    item["Period End"] = period_end
-    
-                    period_text = (
-                        f"{period_start:%Y-%m-%d} to "
-                        f"{period_end:%Y-%m-%d}"
-                    )
-                else:
-                    period_text = "Date unavailable"
-            else:
-                period_text = "Date unavailable"
-    
+            period_text = "Date unavailable"
+
         history_labels.append(
-            f"{period_text} — {item.get('Attendance File', 'Unknown file')}"
+            f"{period_text} — "
+            f"{item.get('Attendance File', 'Unknown file')}"
         )
 
     # --------------------------------------------------------
-    # Combine all weeks
+    # Selector: combine all weeks or view one week
+    # --------------------------------------------------------
+    view_options = [
+        "Combine all processed weeks"
+    ] + history_labels
+
+    selected_label = st.selectbox(
+        "Open processed result",
+        view_options,
+        key="history_result_selector",
+    )
+
+    # --------------------------------------------------------
+    # Combine all processed weeks
     # --------------------------------------------------------
     if selected_label == "Combine all processed weeks":
+        dataframes = [
+            item["data"].copy()
+            for item in st.session_state.history
+            if (
+                isinstance(item.get("data"), pd.DataFrame)
+                and not item["data"].empty
+            )
+        ]
+
+        if not dataframes:
+            st.info("No processed attendance data is available.")
+            st.stop()
+
         combined_history = pd.concat(
-            [
-                item["data"].copy()
-                for item
-                in st.session_state.history
-            ],
+            dataframes,
             ignore_index=True,
+            sort=False,
         )
 
-        # Remove identical employee/date/shift duplicates
-        duplicate_columns = [
-            column
-            for column in [
+        # Convert date/time columns before detecting duplicates
+        if "考勤日期" in combined_history.columns:
+            combined_history["考勤日期"] = pd.to_datetime(
+                combined_history["考勤日期"],
+                errors="coerce",
+            )
+
+        if "上段應上班時間" in combined_history.columns:
+            combined_history["上段應上班時間"] = pd.to_datetime(
+                combined_history["上段應上班時間"],
+                errors="coerce",
+            )
+
+        # Employee + scheduled start uniquely identifies a shift.
+        # If scheduled start is unavailable, use attendance date.
+        if (
+            "工號" in combined_history.columns
+            and "上段應上班時間" in combined_history.columns
+        ):
+            duplicate_columns = [
                 "工號",
-                "考勤日期",
                 "上段應上班時間",
             ]
-            if column in combined_history.columns
-        ]
+
+        elif (
+            "工號" in combined_history.columns
+            and "考勤日期" in combined_history.columns
+        ):
+            duplicate_columns = [
+                "工號",
+                "考勤日期",
+            ]
+
+        else:
+            duplicate_columns = []
 
         if duplicate_columns:
             combined_history = (
                 combined_history
+                .sort_values(duplicate_columns)
                 .drop_duplicates(
                     subset=duplicate_columns,
                     keep="last",
@@ -2018,10 +2088,45 @@ elif page == "05  History":
                 .reset_index(drop=True)
             )
 
-        st.caption(
-            f"Combined records: "
-            f"{len(combined_history):,}"
+        combined_status = (
+            combined_history["判斷出勤after leave"]
+            if "判斷出勤after leave" in combined_history.columns
+            else pd.Series(dtype="object")
         )
+
+        c1, c2, c3, c4 = st.columns(4)
+
+        with c1:
+            metric_card(
+                "Combined rows",
+                f"{len(combined_history):,}",
+                "After removing duplicates",
+            )
+
+        with c2:
+            metric_card(
+                "Absent",
+                f"{(combined_status == 'Absent').sum():,}",
+            )
+
+        with c3:
+            metric_card(
+                "Leave Approved",
+                f"{(combined_status == 'Leave Approved').sum():,}",
+            )
+
+        with c4:
+            forgot_count = combined_status.isin(
+                [
+                    "Forgot Clock-in",
+                    "Forgot Clock-out",
+                ]
+            ).sum()
+
+            metric_card(
+                "Forgot Punch",
+                f"{forgot_count:,}",
+            )
 
         st.dataframe(
             combined_history,
@@ -2031,27 +2136,37 @@ elif page == "05  History":
         )
 
     # --------------------------------------------------------
-    # Show one selected week
+    # Show one selected processed week
     # --------------------------------------------------------
     else:
-        selected_index = (
-            history_labels.index(
-                selected_label
+        selected_index = history_labels.index(
+            selected_label
+        )
+
+        selected_item = st.session_state.history[
+            selected_index
+        ]
+
+        selected_data = selected_item.get(
+            "data",
+            pd.DataFrame(),
+        )
+
+        if (
+            isinstance(selected_data, pd.DataFrame)
+            and not selected_data.empty
+        ):
+            st.dataframe(
+                selected_data,
+                use_container_width=True,
+                hide_index=True,
+                height=520,
             )
-        )
-
-        selected_item = (
-            st.session_state.history[
-                selected_index
-            ]
-        )
-
-        st.dataframe(
-            selected_item["data"],
-            use_container_width=True,
-            hide_index=True,
-            height=520,
-        )
+        else:
+            st.info(
+                "No attendance data is available "
+                "for this history record."
+            )
 
     st.caption(
         "History is stored only during the current browser session. "
