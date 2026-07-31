@@ -1827,7 +1827,215 @@ The accompanying table includes:
                 "Department or scheduled clock-in column "
                 "is unavailable."
             )
-
+    # ============================================================
+    # LEAVE TYPE COUNT AND PERCENTAGE
+    # ============================================================
+    with st.container(border=True):
+        st.markdown(
+            '<div class="dashboard-section-title">'
+            'Approved Leave by Type'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+    
+        st.markdown(
+            '<div class="dashboard-section-note">'
+            'Distribution of attendance shifts covered by each approved leave type.'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+    
+        if "Leave Type" not in df.columns:
+            st.info("Leave Type column is unavailable.")
+    
+        else:
+            # Only include leave records successfully matched to attendance
+            leave_type_data = df[
+                (df["判斷出勤after leave"] == "Leave Approved")
+                & df["Leave Type"].notna()
+            ].copy()
+    
+            # Clean leave type names to prevent duplicates caused by spaces
+            leave_type_data["Leave Type"] = (
+                leave_type_data["Leave Type"]
+                .astype(str)
+                .str.replace("\n", " ", regex=False)
+                .str.replace("\u00a0", " ", regex=False)
+                .str.strip()
+                .str.replace(r"\s+", " ", regex=True)
+            )
+    
+            if leave_type_data.empty:
+                st.info(
+                    "No approved leave records were matched "
+                    "to attendance."
+                )
+    
+            else:
+                leave_type_mode = st.radio(
+                    "Leave type display",
+                    ["Count", "Percentage"],
+                    horizontal=True,
+                    key="leave_type_chart_mode",
+                    label_visibility="collapsed",
+                )
+    
+                leave_type_summary = (
+                    leave_type_data
+                    .groupby(
+                        "Leave Type",
+                        dropna=False,
+                    )
+                    .size()
+                    .rename("Count")
+                    .reset_index()
+                )
+    
+                total_leave_count = (
+                    leave_type_summary["Count"].sum()
+                )
+    
+                leave_type_summary["Percentage"] = (
+                    leave_type_summary["Count"]
+                    / total_leave_count
+                    * 100
+                ).fillna(0)
+    
+                leave_type_summary = (
+                    leave_type_summary
+                    .sort_values(
+                        leave_type_mode,
+                        ascending=True,
+                    )
+                    .reset_index(drop=True)
+                )
+    
+                if leave_type_mode == "Count":
+                    leave_type_summary["Chart Label"] = (
+                        leave_type_summary["Count"]
+                        .map(lambda value: f"{value:,}")
+                    )
+    
+                    x_axis_title = "Approved leave shifts"
+    
+                    hover_template = (
+                        "<b>%{y}</b><br>"
+                        "Approved shifts: %{customdata[0]:,}<br>"
+                        "Share: %{customdata[1]:.2f}%"
+                        "<extra></extra>"
+                    )
+    
+                else:
+                    leave_type_summary["Chart Label"] = (
+                        leave_type_summary["Percentage"]
+                        .map(lambda value: f"{value:.2f}%")
+                    )
+    
+                    x_axis_title = "Share of approved leave (%)"
+    
+                    hover_template = (
+                        "<b>%{y}</b><br>"
+                        "Share: %{x:.2f}%<br>"
+                        "Approved shifts: %{customdata[0]:,}"
+                        "<extra></extra>"
+                    )
+    
+                fig_leave_type = px.bar(
+                    leave_type_summary,
+                    x=leave_type_mode,
+                    y="Leave Type",
+                    orientation="h",
+                    text="Chart Label",
+                    custom_data=[
+                        "Count",
+                        "Percentage",
+                    ],
+                )
+    
+                fig_leave_type.update_traces(
+                    marker_color="#55C6A5",
+                    textposition="outside",
+                    cliponaxis=False,
+                    hovertemplate=hover_template,
+                )
+    
+                # Automatically increase chart height for more leave types
+                leave_chart_height = max(
+                    380,
+                    75 * len(leave_type_summary) + 150,
+                )
+    
+                fig_leave_type = style_chart(
+                    fig_leave_type,
+                    height=leave_chart_height,
+                    show_legend=False,
+                )
+    
+                fig_leave_type.update_layout(
+                    title_text="",
+                    xaxis_title=x_axis_title,
+                    yaxis_title="",
+                    margin=dict(
+                        l=190,
+                        r=100,
+                        t=35,
+                        b=70,
+                    ),
+                )
+    
+                if leave_type_mode == "Percentage":
+                    fig_leave_type.update_xaxes(
+                        ticksuffix="%",
+                    )
+    
+                st.plotly_chart(
+                    fig_leave_type,
+                    use_container_width=True,
+                    config={
+                        "displayModeBar": True,
+                        "displaylogo": False,
+                        "toImageButtonOptions": {
+                            "format": "png",
+                            "filename": (
+                                "Approved_Leave_by_Type_"
+                                + leave_type_mode
+                            ),
+                            "height": 900,
+                            "width": 1500,
+                            "scale": 2,
+                        },
+                    },
+                )
+    
+                leave_type_table = leave_type_summary[
+                    [
+                        "Leave Type",
+                        "Count",
+                        "Percentage",
+                    ]
+                ].copy()
+    
+                leave_type_table["Percentage"] = (
+                    leave_type_table["Percentage"]
+                    .round(2)
+                )
+    
+                # Show largest leave type first in the table
+                leave_type_table = (
+                    leave_type_table
+                    .sort_values(
+                        "Count",
+                        ascending=False,
+                    )
+                    .reset_index(drop=True)
+                )
+    
+                st.dataframe(
+                    leave_type_table,
+                    use_container_width=True,
+                    hide_index=True,
+                )
+                
 # ============================================================
 # 05 HISTORY
 # ============================================================
