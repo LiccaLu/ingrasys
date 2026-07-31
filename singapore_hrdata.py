@@ -1828,7 +1828,7 @@ The accompanying table includes:
                 "is unavailable."
             )
     # ============================================================
-    # APPROVED LEAVE BY TYPE — ORIGINAL LEAVE RECORD COUNT
+    # APPROVED LEAVE BY TYPE — FROM AL + OTHER LEAVE SHEETS
     # ============================================================
     with st.container(border=True):
         st.markdown(
@@ -1841,7 +1841,7 @@ The accompanying table includes:
         st.markdown(
             '<div class="dashboard-section-note">'
             'Count and percentage of leave applications recorded '
-            'in the uploaded leave file.'
+            'in the AL and Other Leave sheets.'
             '</div>',
             unsafe_allow_html=True,
         )
@@ -1849,29 +1849,66 @@ The accompanying table includes:
         leave_parts = []
     
         # --------------------------------------------------------
-        # AL records
+        # AL sheet
+        # Every row in AL is Annual Leave
         # --------------------------------------------------------
         al_data = st.session_state.get("al_df")
     
         if isinstance(al_data, pd.DataFrame) and not al_data.empty:
             al_copy = al_data.copy()
     
-            if "Leave Type" not in al_copy.columns:
-                al_copy["Leave Type"] = "Annual Leave"
+            al_copy["Leave Type"] = "Annual Leave"
     
-            leave_parts.append(al_copy)
+            leave_parts.append(
+                al_copy
+            )
     
         # --------------------------------------------------------
-        # Other Leave records
+        # Other Leave sheet
+        # Use the actual leave type from the sheet
         # --------------------------------------------------------
-        other_data = st.session_state.get("other_leave_df")
+        other_data = st.session_state.get(
+            "other_leave_df"
+        )
     
-        if isinstance(other_data, pd.DataFrame) and not other_data.empty:
+        if (
+            isinstance(other_data, pd.DataFrame)
+            and not other_data.empty
+        ):
             other_copy = other_data.copy()
-            leave_parts.append(other_copy)
     
+            # Find the actual leave-type column
+            if "leavetype" in other_copy.columns:
+                other_copy["Leave Type"] = (
+                    other_copy["leavetype"]
+                )
+    
+            elif "Leave Type" in other_copy.columns:
+                other_copy["Leave Type"] = (
+                    other_copy["Leave Type"]
+                )
+    
+            elif "reason" in other_copy.columns:
+                other_copy["Leave Type"] = (
+                    other_copy["reason"]
+                )
+    
+            else:
+                other_copy["Leave Type"] = (
+                    "Other Leave"
+                )
+    
+            leave_parts.append(
+                other_copy
+            )
+    
+        # --------------------------------------------------------
+        # Check whether leave data exists
+        # --------------------------------------------------------
         if not leave_parts:
-            st.info("No leave records are available.")
+            st.info(
+                "No AL or Other Leave records are available."
+            )
     
         else:
             leave_records = pd.concat(
@@ -1880,197 +1917,231 @@ The accompanying table includes:
                 sort=False,
             )
     
-            # Find the leave-type column
-            if "Leave Type" in leave_records.columns:
-                leave_type_column = "Leave Type"
-    
-            elif "leavetype" in leave_records.columns:
-                leave_type_column = "leavetype"
-    
-            else:
-                leave_type_column = None
-    
-            if leave_type_column is None:
-                st.info("Leave type column is unavailable.")
-    
-            else:
-                leave_records["Leave Type Clean"] = (
-                    leave_records[leave_type_column]
-                    .astype(str)
-                    .str.replace("\n", " ", regex=False)
-                    .str.replace("\u00a0", " ", regex=False)
-                    .str.strip()
-                    .str.replace(r"\s+", " ", regex=True)
+            # Clean leave type names
+            leave_records["Leave Type"] = (
+                leave_records["Leave Type"]
+                .astype(str)
+                .str.replace(
+                    "\n",
+                    " ",
+                    regex=False,
                 )
+                .str.replace(
+                    "\u00a0",
+                    " ",
+                    regex=False,
+                )
+                .str.strip()
+                .str.replace(
+                    r"\s+",
+                    " ",
+                    regex=True,
+                )
+            )
     
-                leave_records = leave_records[
-                    leave_records["Leave Type Clean"].notna()
-                    & ~leave_records["Leave Type Clean"].isin(
-                        ["", "nan", "None"]
-                    )
-                ].copy()
-    
-                # ------------------------------------------------
-                # Remove duplicate leave applications
-                # ------------------------------------------------
-                if "leaveid" in leave_records.columns:
-                    duplicate_columns = [
-                        column
-                        for column in [
-                            "empid",
-                            "leaveid",
-                            "startdate",
-                            "enddate",
-                        ]
-                        if column in leave_records.columns
+            leave_records = leave_records[
+                ~leave_records["Leave Type"].isin(
+                    [
+                        "",
+                        "nan",
+                        "None",
+                        "NaT",
                     ]
+                )
+            ].copy()
     
-                else:
-                    duplicate_columns = [
-                        column
-                        for column in [
-                            "empid",
-                            "Leave Start",
-                            "Leave End",
-                            "Leave Type Clean",
-                        ]
-                        if column in leave_records.columns
-                    ]
+            # ----------------------------------------------------
+            # Remove duplicate leave applications
+            # ----------------------------------------------------
+            duplicate_candidates = [
+                "empid",
+                "工號",
+                "leaveid",
+                "Leave Start",
+                "Leave End",
+                "startdate",
+                "enddate",
+                "Leave Type",
+            ]
     
-                if duplicate_columns:
-                    leave_records = leave_records.drop_duplicates(
+            duplicate_columns = [
+                column
+                for column in duplicate_candidates
+                if column in leave_records.columns
+            ]
+    
+            if duplicate_columns:
+                leave_records = (
+                    leave_records
+                    .drop_duplicates(
                         subset=duplicate_columns,
                         keep="first",
-                    )
-    
-                leave_type_mode = st.radio(
-                    "Leave type display",
-                    ["Count", "Percentage"],
-                    horizontal=True,
-                    key="leave_type_chart_mode",
-                    label_visibility="collapsed",
-                )
-    
-                leave_type_summary = (
-                    leave_records
-                    .groupby("Leave Type Clean")
-                    .size()
-                    .rename("Count")
-                    .reset_index()
-                    .rename(
-                        columns={
-                            "Leave Type Clean": "Leave Type"
-                        }
-                    )
-                )
-    
-                total_leave_records = leave_type_summary[
-                    "Count"
-                ].sum()
-    
-                leave_type_summary["Percentage"] = (
-                    leave_type_summary["Count"]
-                    / total_leave_records
-                    * 100
-                ).fillna(0)
-    
-                leave_type_summary = leave_type_summary.sort_values(
-                    leave_type_mode,
-                    ascending=True,
-                )
-    
-                if leave_type_mode == "Count":
-                    leave_type_summary["Label"] = (
-                        leave_type_summary["Count"]
-                        .map(lambda value: f"{value:,}")
-                    )
-                    x_axis_title = "Leave applications"
-    
-                else:
-                    leave_type_summary["Label"] = (
-                        leave_type_summary["Percentage"]
-                        .map(lambda value: f"{value:.2f}%")
-                    )
-                    x_axis_title = "Percentage of leave applications"
-    
-                fig_leave_type = px.bar(
-                    leave_type_summary,
-                    x=leave_type_mode,
-                    y="Leave Type",
-                    orientation="h",
-                    text="Label",
-                    custom_data=[
-                        "Count",
-                        "Percentage",
-                    ],
-                )
-    
-                fig_leave_type.update_traces(
-                    marker_color="#55C6A5",
-                    textposition="outside",
-                    cliponaxis=False,
-                    hovertemplate=(
-                        "<b>%{y}</b><br>"
-                        "Applications: %{customdata[0]:,}<br>"
-                        "Percentage: %{customdata[1]:.2f}%"
-                        "<extra></extra>"
-                    ),
-                )
-    
-                fig_leave_type = style_chart(
-                    fig_leave_type,
-                    height=max(
-                        380,
-                        len(leave_type_summary) * 75 + 150,
-                    ),
-                    show_legend=False,
-                )
-    
-                fig_leave_type.update_layout(
-                    title_text="",
-                    xaxis_title=x_axis_title,
-                    yaxis_title="",
-                    margin=dict(
-                        l=190,
-                        r=100,
-                        t=35,
-                        b=70,
-                    ),
-                )
-    
-                st.plotly_chart(
-                    fig_leave_type,
-                    use_container_width=True,
-                    config={
-                        "displayModeBar": True,
-                        "displaylogo": False,
-                    },
-                )
-    
-                leave_type_table = (
-                    leave_type_summary[
-                        [
-                            "Leave Type",
-                            "Count",
-                            "Percentage",
-                        ]
-                    ]
-                    .sort_values(
-                        "Count",
-                        ascending=False,
                     )
                     .reset_index(drop=True)
                 )
     
-                leave_type_table["Percentage"] = (
-                    leave_type_table["Percentage"].round(2)
+            leave_type_mode = st.radio(
+                "Leave type display",
+                [
+                    "Count",
+                    "Percentage",
+                ],
+                horizontal=True,
+                key="leave_type_chart_mode",
+                label_visibility="collapsed",
+            )
+    
+            # ----------------------------------------------------
+            # Build summary
+            # ----------------------------------------------------
+            leave_type_summary = (
+                leave_records
+                .groupby(
+                    "Leave Type",
+                    dropna=False,
+                )
+                .size()
+                .rename("Count")
+                .reset_index()
+            )
+    
+            total_leave_records = int(
+                leave_type_summary["Count"].sum()
+            )
+    
+            leave_type_summary["Percentage"] = (
+                leave_type_summary["Count"]
+                / total_leave_records
+                * 100
+            ).fillna(0)
+    
+            leave_type_summary = (
+                leave_type_summary
+                .sort_values(
+                    leave_type_mode,
+                    ascending=True,
+                )
+                .reset_index(drop=True)
+            )
+    
+            # ----------------------------------------------------
+            # Chart labels
+            # ----------------------------------------------------
+            if leave_type_mode == "Count":
+                leave_type_summary["Label"] = (
+                    leave_type_summary["Count"]
+                    .map(
+                        lambda value: f"{value:,}"
+                    )
                 )
     
-                st.dataframe(
-                    leave_type_table,
-                    use_container_width=True,
-                    hide_index=True,
+                x_axis_title = (
+                    "Leave applications"
                 )
+    
+            else:
+                leave_type_summary["Label"] = (
+                    leave_type_summary["Percentage"]
+                    .map(
+                        lambda value: f"{value:.2f}%"
+                    )
+                )
+    
+                x_axis_title = (
+                    "Percentage of leave applications"
+                )
+    
+            # ----------------------------------------------------
+            # Chart
+            # ----------------------------------------------------
+            fig_leave_type = px.bar(
+                leave_type_summary,
+                x=leave_type_mode,
+                y="Leave Type",
+                orientation="h",
+                text="Label",
+                custom_data=[
+                    "Count",
+                    "Percentage",
+                ],
+            )
+    
+            fig_leave_type.update_traces(
+                marker_color="#55C6A5",
+                textposition="outside",
+                cliponaxis=False,
+                hovertemplate=(
+                    "<b>%{y}</b><br>"
+                    "Applications: %{customdata[0]:,}<br>"
+                    "Percentage: %{customdata[1]:.2f}%"
+                    "<extra></extra>"
+                ),
+            )
+    
+            fig_leave_type = style_chart(
+                fig_leave_type,
+                height=max(
+                    380,
+                    len(leave_type_summary) * 75
+                    + 150,
+                ),
+                show_legend=False,
+            )
+    
+            fig_leave_type.update_layout(
+                title_text="",
+                xaxis_title=x_axis_title,
+                yaxis_title="",
+                margin=dict(
+                    l=190,
+                    r=100,
+                    t=35,
+                    b=70,
+                ),
+            )
+    
+            if leave_type_mode == "Percentage":
+                fig_leave_type.update_xaxes(
+                    ticksuffix="%",
+                )
+    
+            st.plotly_chart(
+                fig_leave_type,
+                use_container_width=True,
+                config={
+                    "displayModeBar": True,
+                    "displaylogo": False,
+                },
+            )
+    
+            # ----------------------------------------------------
+            # Table
+            # ----------------------------------------------------
+            leave_type_table = (
+                leave_type_summary[
+                    [
+                        "Leave Type",
+                        "Count",
+                        "Percentage",
+                    ]
+                ]
+                .sort_values(
+                    "Count",
+                    ascending=False,
+                )
+                .reset_index(drop=True)
+            )
+    
+            leave_type_table["Percentage"] = (
+                leave_type_table["Percentage"]
+                .round(2)
+            )
+    
+            st.dataframe(
+                leave_type_table,
+                use_container_width=True,
+                hide_index=True,
+            )
                 
 # ============================================================
 # 05 HISTORY
