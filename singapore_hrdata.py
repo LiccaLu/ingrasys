@@ -1841,31 +1841,76 @@ elif page == "05  History":
         st.info("No processed history is available yet.")
         st.stop()
 
+    # --------------------------------------------------------
+    # Convert stored timestamps to Taiwan time for display
+    # --------------------------------------------------------
+    def to_taiwan_time(value):
+        timestamp = pd.Timestamp(value)
+
+        # Streamlit Cloud usually stores naive datetime values in UTC
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.tz_localize("UTC")
+
+        return timestamp.tz_convert("Asia/Taipei")
+
+    # --------------------------------------------------------
+    # Build history summary table
+    # --------------------------------------------------------
     history_table = pd.DataFrame(
         [
-            {key: value for key, value in item.items() if key != "data"}
+            {
+                key: value
+                for key, value in item.items()
+                if key != "data"
+            }
             for item in st.session_state.history
         ]
     )
-    history_table["Processed At"] = history_table["Processed At"].dt.strftime(
-        "%Y-%m-%d %H:%M:%S"
+
+    history_table["Processed At"] = (
+        history_table["Processed At"]
+        .apply(to_taiwan_time)
+        .apply(
+            lambda value: value.strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+        )
     )
 
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="panel">',
+        unsafe_allow_html=True,
+    )
+
     st.dataframe(
         history_table,
         use_container_width=True,
         hide_index=True,
     )
 
+    # --------------------------------------------------------
+    # Build Taiwan-time labels for result selector
+    # --------------------------------------------------------
     history_labels = [
-        f"{item['Processed At']:%Y-%m-%d %H:%M} — {item['Attendance File']}"
+        (
+            f"{to_taiwan_time(item['Processed At']):%Y-%m-%d %H:%M}"
+            f" — {item['Attendance File']}"
+        )
         for item in st.session_state.history
     ]
 
-    selected_label = st.selectbox("Open processed result", history_labels)
-    selected_index = history_labels.index(selected_label)
-    selected_item = st.session_state.history[selected_index]
+    selected_label = st.selectbox(
+        "Open processed result",
+        history_labels,
+    )
+
+    selected_index = history_labels.index(
+        selected_label
+    )
+
+    selected_item = (
+        st.session_state.history[selected_index]
+    )
 
     st.dataframe(
         selected_item["data"],
@@ -1873,7 +1918,11 @@ elif page == "05  History":
         hide_index=True,
         height=520,
     )
-    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown(
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
     st.caption(
         "History is session-based in this GitHub/Streamlit version. "
