@@ -2082,8 +2082,8 @@ The accompanying table includes:
                 fig_leave_type,
                 height=max(
                     380,
-                    len(leave_type_summary) * 75
-                    + 150,
+                    len(leave_type_summary) * 45
+                    + 120,
                 ),
                 show_legend=False,
             )
