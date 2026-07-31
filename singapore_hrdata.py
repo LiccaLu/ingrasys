@@ -1254,14 +1254,11 @@ This chart summarizes overall attendance performance across the selected reporti
 
   **Absent shifts ÷ Scheduled shifts × 100**
 
+
 Each data point also displays:
 - Absent shifts
 - Scheduled shifts
 - Daily absence rate
-
-This visualization helps identify attendance trends, unusual spikes, and changes in absence levels over time.
-
----
 
 ### Daily Attendance by Department
 
@@ -1276,8 +1273,6 @@ The accompanying table includes:
 - Scheduled shifts
 - Absent shifts
 - Absence percentage
-
-This visualization helps compare department performance, identify departments with higher absence levels, and determine whether absences are driven by workforce size or by a higher absence rate.
             """
         )
 
