@@ -1859,70 +1859,74 @@ elif page == "05  History":
     # Build history summary
     # --------------------------------------------------------
     history_rows = []
-
+    
     for item in st.session_state.history:
+        period_start = pd.to_datetime(
+            item.get("Period Start"),
+            errors="coerce",
+        )
+    
+        period_end = pd.to_datetime(
+            item.get("Period End"),
+            errors="coerce",
+        )
+    
         history_rows.append(
             {
-                "Processed At": (
-                    to_taiwan_time(
-                        item["Processed At"]
-                    ).strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    )
-                ),
+                "Processed At": to_taiwan_time(
+                    item.get("Processed At")
+                ).strftime("%Y-%m-%d %H:%M:%S"),
+    
                 "Period Start": (
-                    pd.to_datetime(
-                        item.get("Period Start"),
-                        errors="coerce",
-                    ).strftime("%Y-%m-%d")
-                    if pd.notna(
-                        item.get("Period Start")
-                    )
+                    period_start.strftime("%Y-%m-%d")
+                    if pd.notna(period_start)
                     else ""
                 ),
+    
                 "Period End": (
-                    pd.to_datetime(
-                        item.get("Period End"),
-                        errors="coerce",
-                    ).strftime("%Y-%m-%d")
-                    if pd.notna(
-                        item.get("Period End")
-                    )
+                    period_end.strftime("%Y-%m-%d")
+                    if pd.notna(period_end)
                     else ""
                 ),
-                "Attendance File": item[
-                    "Attendance File"
-                ],
-                "Leave File": item[
-                    "Leave File"
-                ],
-                "Attendance Rows": item[
-                    "Attendance Rows"
-                ],
-                "Absent": item[
-                    "Absent"
-                ],
-                "Leave Approved": item[
-                    "Leave Approved"
-                ],
-                "Forgot Clock-in": item[
-                    "Forgot Clock-in"
-                ],
-                "Forgot Clock-out": item[
-                    "Forgot Clock-out"
-                ],
+    
+                "Attendance File": item.get(
+                    "Attendance File",
+                    "",
+                ),
+    
+                "Leave File": item.get(
+                    "Leave File",
+                    "",
+                ),
+    
+                "Attendance Rows": item.get(
+                    "Attendance Rows",
+                    0,
+                ),
+    
+                "Absent": item.get(
+                    "Absent",
+                    0,
+                ),
+    
+                "Leave Approved": item.get(
+                    "Leave Approved",
+                    0,
+                ),
+    
+                "Forgot Clock-in": item.get(
+                    "Forgot Clock-in",
+                    0,
+                ),
+    
+                "Forgot Clock-out": item.get(
+                    "Forgot Clock-out",
+                    0,
+                ),
             }
         )
-
-    history_table = pd.DataFrame(
-        history_rows
-    )
-
-    st.dataframe(
-        history_table,
-        use_container_width=True,
-        hide_index=True,
-    )
+    
+    history_table = pd.DataFrame(history_rows)
 
     # --------------------------------------------------------
     # Create selection labels
