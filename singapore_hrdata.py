@@ -1230,44 +1230,7 @@ elif page == "04  Dashboard":
     forgot_clock_in_count = int((status == "Forgot Clock-in").sum())
     forgot_clock_out_count = int((status == "Forgot Clock-out").sum())
 
-    # KPI cards
-    c1, c2, c3, c4, c5 = st.columns(5)
-
-    with c1:
-        metric_card(
-            "Absence Shift Rate",
-            f"{absence_shift_rate:.2f}%",
-            f"{absent_shifts:,} / {scheduled_shifts:,} shifts",
-        )
-
-    with c2:
-        metric_card(
-            "Absent Employee Rate",
-            f"{absent_employee_rate:.2f}%",
-            f"{unique_absent_employees:,} / "
-            f"{unique_scheduled_employees:,} employees",
-        )
-
-    with c3:
-        metric_card(
-            "Leave Approved",
-            f"{leave_approved_count:,}",
-            "Covered attendance shifts",
-        )
-
-    with c4:
-        metric_card(
-            "Forgot Clock-in",
-            f"{forgot_clock_in_count:,}",
-        )
-
-    with c5:
-        metric_card(
-            "Forgot Clock-out",
-            f"{forgot_clock_out_count:,}",
-        )
-
-    with st.expander("ℹ️ Data Definitions", expanded=False):
+    with st.expander("ℹ️ Data & Definitions", expanded=False):
         st.markdown(
             """
 ### Absence Shift Rate
