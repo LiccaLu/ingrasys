@@ -1650,7 +1650,7 @@ The accompanying table includes:
                         ticklen=7,
                         tickangle=0,
                         tickfont=dict(
-                            size=14,
+                            size=16,
                         ),
                         automargin=True,
                     ),
