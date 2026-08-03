@@ -1756,7 +1756,536 @@ The accompanying table includes:
                 "Scheduled clock-in time or final attendance "
                 "status column is unavailable."
             )
-                
+    # ============================================================
+    # DAILY ATTENDANCE BY DEPARTMENT
+    # ============================================================
+    with st.container(border=True):
+        st.markdown(
+            '<div class="dashboard-section-title">'
+            'Daily Attendance by Department'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+    
+        st.markdown(
+            '<div class="dashboard-section-note">'
+            'Scheduled and absent shifts for each department by date.'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+    
+        required_department_columns = [
+            "部門",
+            "上段應上班時間",
+            "判斷出勤after leave",
+        ]
+    
+        missing_department_columns = [
+            column
+            for column in required_department_columns
+            if column not in df.columns
+        ]
+    
+        if missing_department_columns:
+            st.info(
+                "Required department attendance columns are unavailable: "
+                + ", ".join(missing_department_columns)
+            )
+    
+        else:
+            department_daily = df.copy()
+    
+            # ----------------------------------------------------
+            # Parse scheduled clock-in date and time
+            # ----------------------------------------------------
+            department_daily["Scheduled Start"] = pd.to_datetime(
+                department_daily["上段應上班時間"],
+                errors="coerce",
+            )
+    
+            department_daily["Date"] = (
+                department_daily["Scheduled Start"]
+                .dt.normalize()
+            )
+    
+            # Only rows with a valid scheduled clock-in
+            department_daily = department_daily[
+                department_daily["Scheduled Start"].notna()
+                & department_daily["Date"].notna()
+                & department_daily["部門"].notna()
+            ].copy()
+    
+            department_daily["部門"] = (
+                department_daily["部門"]
+                .astype(str)
+                .str.strip()
+            )
+    
+            # ----------------------------------------------------
+            # One employee + scheduled start = one scheduled shift
+            # ----------------------------------------------------
+            duplicate_columns = [
+                column
+                for column in [
+                    "工號",
+                    "Scheduled Start",
+                ]
+                if column in department_daily.columns
+            ]
+    
+            if duplicate_columns:
+                department_daily = (
+                    department_daily
+                    .sort_values(duplicate_columns)
+                    .drop_duplicates(
+                        subset=duplicate_columns,
+                        keep="first",
+                    )
+                    .reset_index(drop=True)
+                )
+    
+            if department_daily.empty:
+                st.info(
+                    "No valid scheduled department attendance records are available."
+                )
+    
+            else:
+                # ------------------------------------------------
+                # Build department summary by date
+                # ------------------------------------------------
+                department_summary_all = (
+                    department_daily
+                    .groupby(
+                        [
+                            "Date",
+                            "部門",
+                        ],
+                        dropna=False,
+                    )
+                    .agg(
+                        Scheduled=(
+                            "判斷出勤after leave",
+                            "size",
+                        ),
+                        Absent=(
+                            "判斷出勤after leave",
+                            lambda values: (
+                                values == "Absent"
+                            ).sum(),
+                        ),
+                        Approved_Leave=(
+                            "判斷出勤after leave",
+                            lambda values: (
+                                values == "Leave Approved"
+                            ).sum(),
+                        ),
+                    )
+                    .reset_index()
+                )
+    
+                department_summary_all["Scheduled"] = (
+                    department_summary_all["Scheduled"]
+                    .astype(int)
+                )
+    
+                department_summary_all["Absent"] = (
+                    department_summary_all["Absent"]
+                    .astype(int)
+                )
+    
+                department_summary_all["Approved Leave"] = (
+                    department_summary_all["Approved_Leave"]
+                    .astype(int)
+                )
+    
+                department_summary_all["Percentage"] = (
+                    department_summary_all["Absent"]
+                    / department_summary_all[
+                        "Scheduled"
+                    ].replace(0, pd.NA)
+                    * 100
+                ).fillna(0)
+    
+                # Optional rate including approved leave
+                department_summary_all[
+                    "Percentage incl. Approved Leave"
+                ] = (
+                    (
+                        department_summary_all["Absent"]
+                        + department_summary_all[
+                            "Approved Leave"
+                        ]
+                    )
+                    / department_summary_all[
+                        "Scheduled"
+                    ].replace(0, pd.NA)
+                    * 100
+                ).fillna(0)
+    
+                available_department_dates = (
+                    department_summary_all["Date"]
+                    .dropna()
+                    .sort_values()
+                    .unique()
+                    .tolist()
+                )
+    
+                if not available_department_dates:
+                    st.info(
+                        "No valid attendance dates are available."
+                    )
+    
+                else:
+                    selected_department_date = st.selectbox(
+                        "Attendance date",
+                        options=available_department_dates,
+                        format_func=lambda value: pd.Timestamp(
+                            value
+                        ).strftime("%Y-%m-%d"),
+                        key="department_attendance_date",
+                    )
+    
+                    department_chart_mode = st.radio(
+                        "Department chart display",
+                        [
+                            "Scheduled and Absent",
+                            "Absence Percentage",
+                        ],
+                        horizontal=True,
+                        key="department_chart_mode",
+                        label_visibility="collapsed",
+                    )
+    
+                    selected_department_summary = (
+                        department_summary_all[
+                            department_summary_all["Date"]
+                            == pd.Timestamp(
+                                selected_department_date
+                            )
+                        ]
+                        .copy()
+                    )
+    
+                    # Remove departments with no scheduled shift
+                    selected_department_summary = (
+                        selected_department_summary[
+                            selected_department_summary[
+                                "Scheduled"
+                            ] > 0
+                        ]
+                        .copy()
+                    )
+    
+                    selected_department_summary["Date Label"] = (
+                        pd.to_datetime(
+                            selected_department_summary["Date"]
+                        )
+                        .dt.strftime("%Y-%m-%d")
+                    )
+    
+                    if selected_department_summary.empty:
+                        st.info(
+                            "No department attendance records are available "
+                            "for the selected date."
+                        )
+    
+                    else:
+                        # ========================================
+                        # MODE 1: Scheduled and Absent
+                        # ========================================
+                        if (
+                            department_chart_mode
+                            == "Scheduled and Absent"
+                        ):
+                            selected_department_summary = (
+                                selected_department_summary
+                                .sort_values(
+                                    "Scheduled",
+                                    ascending=True,
+                                )
+                                .reset_index(drop=True)
+                            )
+    
+                            department_long = (
+                                selected_department_summary
+                                .melt(
+                                    id_vars=[
+                                        "部門",
+                                        "Date",
+                                        "Percentage",
+                                    ],
+                                    value_vars=[
+                                        "Scheduled",
+                                        "Absent",
+                                    ],
+                                    var_name="Attendance Type",
+                                    value_name="Shifts",
+                                )
+                            )
+    
+                            fig_department = px.bar(
+                                department_long,
+                                x="Shifts",
+                                y="部門",
+                                color="Attendance Type",
+                                orientation="h",
+                                barmode="group",
+                                text="Shifts",
+                                custom_data=[
+                                    "Date",
+                                    "Percentage",
+                                ],
+                                color_discrete_map={
+                                    "Scheduled": "#3957A5",
+                                    "Absent": "#FF5A5F",
+                                },
+                            )
+    
+                            fig_department.update_traces(
+                                textposition="outside",
+                                cliponaxis=False,
+                                textfont=dict(
+                                    size=14,
+                                    color="#243247",
+                                ),
+                                hovertemplate=(
+                                    "<b>%{y}</b><br>"
+                                    "Date: %{customdata[0]|%Y-%m-%d}<br>"
+                                    "%{fullData.name}: %{x:,}<br>"
+                                    "Absence rate: "
+                                    "%{customdata[1]:.2f}%"
+                                    "<extra></extra>"
+                                ),
+                            )
+    
+                            department_height = max(
+                                420,
+                                len(
+                                    selected_department_summary
+                                ) * 75 + 150,
+                            )
+    
+                            fig_department = style_chart(
+                                fig_department,
+                                height=department_height,
+                                show_legend=True,
+                                legend_position="bottom",
+                            )
+    
+                            fig_department.update_layout(
+                                title_text="",
+                                xaxis_title="Number of shifts",
+                                yaxis_title="",
+                                bargap=0.30,
+                                margin=dict(
+                                    l=250,
+                                    r=90,
+                                    t=45,
+                                    b=90,
+                                ),
+                                legend_title_text="",
+                            )
+    
+                        # ========================================
+                        # MODE 2: Absence Percentage
+                        # ========================================
+                        else:
+                            selected_department_summary = (
+                                selected_department_summary
+                                .sort_values(
+                                    "Percentage",
+                                    ascending=True,
+                                )
+                                .reset_index(drop=True)
+                            )
+    
+                            selected_department_summary[
+                                "Percentage Label"
+                            ] = (
+                                selected_department_summary[
+                                    "Percentage"
+                                ]
+                                .map(
+                                    lambda value: (
+                                        f"{value:.2f}%"
+                                    )
+                                )
+                            )
+    
+                            fig_department = px.bar(
+                                selected_department_summary,
+                                x="Percentage",
+                                y="部門",
+                                orientation="h",
+                                text="Percentage Label",
+                                custom_data=[
+                                    "Scheduled",
+                                    "Absent",
+                                    "Approved Leave",
+                                    "Percentage",
+                                ],
+                            )
+    
+                            fig_department.update_traces(
+                                marker_color="#3957A5",
+                                textposition="outside",
+                                cliponaxis=False,
+                                textfont=dict(
+                                    size=14,
+                                    color="#243247",
+                                ),
+                                hovertemplate=(
+                                    "<b>%{y}</b><br>"
+                                    "Scheduled shifts: "
+                                    "%{customdata[0]:,}<br>"
+                                    "Absent shifts: "
+                                    "%{customdata[1]:,}<br>"
+                                    "Approved leave: "
+                                    "%{customdata[2]:,}<br>"
+                                    "Absence rate: "
+                                    "%{customdata[3]:.2f}%"
+                                    "<extra></extra>"
+                                ),
+                            )
+    
+                            department_height = max(
+                                420,
+                                len(
+                                    selected_department_summary
+                                ) * 70 + 140,
+                            )
+    
+                            fig_department = style_chart(
+                                fig_department,
+                                height=department_height,
+                                show_legend=False,
+                            )
+    
+                            maximum_department_rate = (
+                                selected_department_summary[
+                                    "Percentage"
+                                ].max()
+                            )
+    
+                            fig_department.update_layout(
+                                title_text="",
+                                xaxis_title="Absence rate",
+                                yaxis_title="",
+                                bargap=0.38,
+                                margin=dict(
+                                    l=250,
+                                    r=100,
+                                    t=45,
+                                    b=75,
+                                ),
+                            )
+    
+                            fig_department.update_xaxes(
+                                range=[
+                                    0,
+                                    max(
+                                        5,
+                                        maximum_department_rate
+                                        * 1.25,
+                                    ),
+                                ],
+                                ticksuffix="%",
+                                tickformat=".0f",
+                            )
+    
+                        # ------------------------------------------------
+                        # Display department chart
+                        # ------------------------------------------------
+                        st.plotly_chart(
+                            fig_department,
+                            use_container_width=True,
+                            config={
+                                "displayModeBar": True,
+                                "displaylogo": False,
+                                "toImageButtonOptions": {
+                                    "format": "png",
+                                    "filename": (
+                                        "Daily_Attendance_by_Department_"
+                                        + pd.Timestamp(
+                                            selected_department_date
+                                        ).strftime("%Y-%m-%d")
+                                        + "_"
+                                        + department_chart_mode
+                                        .replace(" ", "_")
+                                    ),
+                                    "height": 1000,
+                                    "width": 1800,
+                                    "scale": 2,
+                                },
+                            },
+                        )
+    
+                        # ------------------------------------------------
+                        # Department summary table
+                        # ------------------------------------------------
+                        department_table = (
+                            selected_department_summary[
+                                [
+                                    "Date Label",
+                                    "部門",
+                                    "Scheduled",
+                                    "Absent",
+                                    "Approved Leave",
+                                    "Percentage",
+                                    (
+                                        "Percentage incl. "
+                                        "Approved Leave"
+                                    ),
+                                ]
+                            ]
+                            .copy()
+                            .rename(
+                                columns={
+                                    "Date Label": "Date",
+                                    (
+                                        "Percentage incl. "
+                                        "Approved Leave"
+                                    ): (
+                                        "Rate incl. "
+                                        "Approved Leave (%)"
+                                    ),
+                                }
+                            )
+                        )
+    
+                        department_table[
+                            "Percentage"
+                        ] = (
+                            department_table[
+                                "Percentage"
+                            ]
+                            .round(2)
+                        )
+    
+                        department_table[
+                            "Rate incl. Approved Leave (%)"
+                        ] = (
+                            department_table[
+                                "Rate incl. Approved Leave (%)"
+                            ]
+                            .round(2)
+                        )
+    
+                        department_table = (
+                            department_table
+                            .sort_values(
+                                "Scheduled",
+                                ascending=False,
+                            )
+                            .reset_index(drop=True)
+                        )
+    
+                        st.dataframe(
+                            department_table,
+                            use_container_width=True,
+                            hide_index=True,
+                        )
+                    
     # ============================================================
     # APPROVED LEAVE BY TYPE — FROM AL + OTHER LEAVE SHEETS
     # ============================================================
