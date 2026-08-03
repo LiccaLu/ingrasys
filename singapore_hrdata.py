@@ -1278,198 +1278,155 @@ The accompanying table includes:
 
     st.divider()
 
-    # Daily trend card
-    with st.container(border=True):
-        st.markdown(
-            '<div class="dashboard-section-title">'
-            'Daily Absence Trend'
-            '</div>',
-            unsafe_allow_html=True,
+    # ============================================================
+    # DAILY ABSENCE BAR CHART
+    # ============================================================
+    
+    # 根據選擇的模式設定圖表資料
+    if daily_mode == "Percentage":
+        chart_value = "Percentage"
+        chart_title = "Daily Absence Rate"
+        y_axis_title = "Absence Rate"
+        text_values = daily_summary["Percentage"].map(
+            lambda value: f"{value:.1f}%"
         )
-
-        st.markdown(
-            '<div class="dashboard-section-note">'
-            'Scheduled shifts are counted from the scheduled clock-in time.'
-            '</div>',
-            unsafe_allow_html=True,
+    else:
+        chart_value = "Count"
+        chart_title = "Daily Absent Shifts"
+        y_axis_title = "Absent Shifts"
+        text_values = daily_summary["Count"].map(
+            lambda value: f"{int(value):,}"
         )
     
-        if "上段應上班時間" in df.columns:
-            daily_mode = st.radio(
-                "Daily trend display",
-                ["Count", "Percentage"],
-                horizontal=True,
-                key="daily_mode",
-                label_visibility="collapsed",
-            )
+    fig_daily = px.bar(
+        daily_summary,
+        x="Date",
+        y=chart_value,
+        custom_data=[
+            "Count",
+            "Scheduled",
+            "Percentage",
+        ],
+    )
     
-            daily = df.copy()
-    
-            # 將上段應上班時間轉成 datetime
-            daily["Scheduled Start"] = pd.to_datetime(
-                daily["上段應上班時間"],
-                errors="coerce",
-            )
-    
-            # 直接從上段應上班時間取得排班日期
-            daily["Date"] = (
-                daily["Scheduled Start"]
-                .dt.normalize()
-            )
-    
-            # 只保留確實有排班時間的紀錄
-            daily_scheduled = daily[
-                daily["Scheduled Start"].notna()
-            ].copy()
-    
-            # 避免同一員工、同一排班時間重複計算
-            daily_scheduled = (
-                daily_scheduled
-                .sort_values(
-                    [
-                        "工號",
-                        "Scheduled Start",
-                    ]
-                )
-                .drop_duplicates(
-                    subset=[
-                        "工號",
-                        "Scheduled Start",
-                    ],
-                    keep="first",
-                )
-            )
-    
-            # 每日 Scheduled 與 Absent
-            daily_summary = (
-                daily_scheduled
-                .groupby("Date")
-                .agg(
-                    Scheduled=(
-                        "工號",
-                        "size",
-                    ),
-                    Count=(
-                        "判斷出勤after leave",
-                        lambda values: (
-                            values == "Absent"
-                        ).sum(),
-                    ),
-                )
-                .reset_index()
-                .sort_values("Date")
-            )
-    
-            daily_summary["Scheduled"] = (
-                daily_summary["Scheduled"]
-                .astype(int)
-            )
-    
-            daily_summary["Count"] = (
-                daily_summary["Count"]
-                .astype(int)
-            )
-    
-            daily_summary["Percentage"] = (
-                daily_summary["Count"]
-                / daily_summary["Scheduled"]
-                .replace(0, pd.NA)
-                * 100
-            ).fillna(0)
-    
-            fig_daily = px.area(
-                daily_summary,
-                x="Date",
-                y=daily_mode,
-                custom_data=[
-                    "Count",
-                    "Scheduled",
-                    "Percentage",
-                ],
-            )
-    
-            text_positions = [
-                    "top right"
-                    if index == 0
-                    else "top left"
-                    if index == len(daily_summary) - 1
-                    else "top center"
-                    for index in range(len(daily_summary))
-                ]
-            
-            fig_daily.update_traces(
-                line=dict(
-                    width=3,
-                    color="#3957A5",
-                    shape="spline",
-                ),
-                fillcolor="rgba(57, 87, 165, 0.18)",
-                marker=dict(
-                    size=7,
-                    color="#3957A5",
-                ),
-                
-                mode="lines+markers+text",
-    
-                text=[
-                    (
-                        f"Count: {count}<br>"
-                        f"Scheduled: {scheduled}<br>"
-                        f"{percentage:.2f}%"
-                    )
-                    for count, scheduled, percentage in zip(
-                        daily_summary["Count"],
-                        daily_summary["Scheduled"],
-                        daily_summary["Percentage"],
-                    )
-                ],
-                
-                textposition=text_positions,
-            
-                textfont=dict(
-                    size=11,
-                    color="#243247",
-                ),
-                cliponaxis=False,
-                hovertemplate=(
-                    "<b>%{x|%Y-%m-%d}</b><br>"
-                    "Absent shifts: %{customdata[0]:,}<br>"
-                    "Scheduled shifts: %{customdata[1]:,}<br>"
-                    "Absence rate: %{customdata[2]:.2f}%"
-                    "<extra></extra>"
-                ),
-            )
-    
-            fig_daily = style_chart(
-                fig_daily,
-                height=360,
-                show_legend=False,
-            )
-    
-            
-            fig_daily.update_layout(
-                title="",
-                xaxis_title="",
-                yaxis_title=(
-                    "Absence rate (%)"
-                    if daily_mode == "Percentage"
-                    else "Absent shifts"
-                ),
-                margin=dict(
-                l=110,
-                r=110,
-                t=130,
-                b=70,
+    fig_daily.update_traces(
+        marker=dict(
+            color="#285781",
+            line=dict(
+                color="#285781",
+                width=1,
             ),
+        ),
+        width=0.40,
+        text=text_values,
+        textposition="outside",
+        textfont=dict(
+            size=13,
+            color="#111111",
+        ),
+        cliponaxis=False,
+        hovertemplate=(
+            "<b>%{x|%Y-%m-%d}</b><br>"
+            "Absent shifts: %{customdata[0]:,}<br>"
+            "Scheduled shifts: %{customdata[1]:,}<br>"
+            "Absence rate: %{customdata[2]:.2f}%"
+            "<extra></extra>"
+        ),
+    )
+    
+    fig_daily.update_layout(
+        title=dict(
+            text=chart_title,
+            x=0.5,
+            xanchor="center",
+            font=dict(
+                size=20,
+                color="#111111",
+            ),
+        ),
+        height=520,
+        paper_bgcolor="#FFFFFF",
+        plot_bgcolor="#FFFFFF",
+        font=dict(
+            family="Arial, sans-serif",
+            size=13,
+            color="#243247",
+        ),
+        margin=dict(
+            l=80,
+            r=55,
+            t=100,
+            b=90,
+        ),
+        showlegend=False,
+        bargap=0.55,
+        xaxis=dict(
+            title="",
+            type="date",
+            tickformat="%Y-%m-%d",
+            dtick="D1",
+            showgrid=False,
+            zeroline=False,
+            showline=True,
+            linecolor="#222222",
+            linewidth=1.5,
+            ticks="outside",
+            ticklen=7,
+            tickcolor="#222222",
+            tickangle=0,
+            automargin=True,
+        ),
+        yaxis=dict(
+            title=y_axis_title,
+            showgrid=False,
+            zeroline=False,
+            showline=True,
+            linecolor="#222222",
+            linewidth=1.5,
+            ticks="outside",
+            ticklen=7,
+            tickcolor="#222222",
+            rangemode="tozero",
+            automargin=True,
+        ),
+        hoverlabel=dict(
+            bgcolor="#243247",
+            font_size=13,
+            font_color="white",
+            bordercolor="#243247",
+        ),
+    )
+    
+    # Percentage 模式使用百分比軸
+    if daily_mode == "Percentage":
+        maximum_percentage = daily_summary["Percentage"].max()
+    
+        y_axis_max = max(
+            10,
+            (maximum_percentage * 1.25),
         )
     
-            fig_daily.update_xaxes(
-                type="date",
-                tickformat="%d %b",
-                dtick="D1",
-            )
+        fig_daily.update_yaxes(
+            range=[0, y_axis_max],
+            ticksuffix="%",
+            tickformat=".0f",
+        )
     
-            st.plotly_chart(
+    # Count 模式留出柱頂數字空間
+    else:
+        maximum_count = daily_summary["Count"].max()
+    
+        y_axis_max = max(
+            5,
+            maximum_count * 1.25,
+        )
+    
+        fig_daily.update_yaxes(
+            range=[0, y_axis_max],
+            tickformat=",d",
+        )
+    
+    st.plotly_chart(
         fig_daily,
         use_container_width=True,
         config={
@@ -1477,18 +1434,15 @@ The accompanying table includes:
             "displaylogo": False,
             "toImageButtonOptions": {
                 "format": "png",
-                "filename": "Daily_Absence_Trend",
-                "height": 700,
-                "width": 1400,
+                "filename": (
+                    "Daily_Absence_Rate"
+                    if daily_mode == "Percentage"
+                    else "Daily_Absent_Shifts"
+                ),
+                "height": 900,
+                "width": 1600,
                 "scale": 2,
             },
-    
-            "modeBarButtonsToRemove": [
-                "lasso2d",
-                "select2d",
-                "autoScale2d",
-                "toggleSpikelines",
-            ],
         },
     )
     
