@@ -1470,9 +1470,9 @@ The accompanying table includes:
         hide_index=True,
     )
     
-        else:
-            st.info(
-                "Scheduled clock-in time column is unavailable."
+    else:
+        st.info(
+            "Scheduled clock-in time column is unavailable."
             )
 
 
