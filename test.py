@@ -1499,7 +1499,7 @@ The accompanying table includes:
                         showline=True,
                         linecolor="#222222",
                         ticks="outside",
-                        tickangle=0,
+                        tickangle=-45,
                         automargin=True,
                     ),
                     yaxis=dict(
@@ -1615,7 +1615,7 @@ The accompanying table includes:
                         showline=True,
                         linecolor="#222222",
                         ticks="outside",
-                        tickangle=0,
+                        tickangle=-45,
                         automargin=True,
                     ),
                     yaxis=dict(
