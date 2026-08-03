@@ -286,23 +286,62 @@ def process_excel(file):
             .replace(company_size_map)
         )
 
-    # ========================================================
+    # ============================================================
     # 服務期間
-    # ========================================================
-    worktime_columns = [
+    # ============================================================
+    worktime = [
         "1服務期間",
-        "2服務期間",
-        "3服務期間",
-        "4服務期間",
-        "5服務期間",
+        "2服務期間 ",
+        "3服務期間 ",
+        "4服務期間 ",
+        "5服務期間 ",
     ]
-
-    for column in worktime_columns:
-        split_period_column(
-            df=df,
-            column_name=column,
-            new_column_name=f"{column}_結束",
+    
+    for col in worktime:
+        idx2 = df.columns.get_loc(col)
+    
+        split = (
+            df[col]
+            .fillna("")
+            .astype(str)
+            .str.split(
+                r"[~～]",
+                n=1,
+                expand=True,
+            )
         )
+    
+        start_values = (
+            split[0]
+            .fillna("")
+            .str.strip()
+        )
+    
+        if split.shape[1] >= 2:
+            end_values = (
+                split[1]
+                .fillna("")
+                .str.strip()
+            )
+        else:
+            end_values = pd.Series(
+                "",
+                index=df.index,
+                dtype="object",
+            )
+    
+        end_column = f"{col}_結束"
+    
+        if end_column in df.columns:
+            df[end_column] = end_values
+        else:
+            df.insert(
+                idx2 + 1,
+                end_column,
+                end_values,
+            )
+    
+        df[col] = start_values
 
     # ========================================================
     # 生日
@@ -403,14 +442,54 @@ def process_excel(file):
         default="□役畢    □免役",
     )
 
-    # ========================================================
+    # ============================================================
     # 入伍與退伍時間
-    # ========================================================
-    split_period_column(
-        df=df,
-        column_name="入伍與退伍時間",
-        new_column_name="入伍與退伍時間_退伍",
+    # ============================================================
+    col = "入伍與退伍時間"
+    idx2 = df.columns.get_loc(col)
+    
+    split1 = (
+        df[col]
+        .fillna("")
+        .astype(str)
+        .str.split(
+            r"[~～]",
+            n=1,
+            expand=True,
+        )
     )
+    
+    start_values = (
+        split1[0]
+        .fillna("")
+        .str.strip()
+    )
+    
+    if split1.shape[1] >= 2:
+        end_values = (
+            split1[1]
+            .fillna("")
+            .str.strip()
+        )
+    else:
+        end_values = pd.Series(
+            "",
+            index=df.index,
+            dtype="object",
+        )
+    
+    end_column = f"{col}_退伍"
+    
+    if end_column in df.columns:
+        df[end_column] = end_values
+    else:
+        df.insert(
+            idx2 + 1,
+            end_column,
+            end_values,
+        )
+    
+    df[col] = start_values
 
     # ========================================================
     # 住宿情況
