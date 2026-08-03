@@ -1772,12 +1772,7 @@ The accompanying table includes:
                 st.info(
                     "No valid scheduled dates are available."
                 )
-
-        else:
-            st.info(
-                "Department or scheduled clock-in column "
-                "is unavailable."
-            )
+                
     # ============================================================
     # APPROVED LEAVE BY TYPE — FROM AL + OTHER LEAVE SHEETS
     # ============================================================
