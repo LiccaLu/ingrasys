@@ -1449,31 +1449,28 @@ The accompanying table includes:
     daily_table = daily_summary.copy()
     
     daily_table["Date"] = (
-                pd.to_datetime(
-                    daily_table["Date"]
-                )
-                .dt.strftime("%Y-%m-%d")
-            )
+        pd.to_datetime(daily_table["Date"])
+        .dt.strftime("%Y-%m-%d")
+    )
     
     daily_table["Percentage"] = (
-                daily_table["Percentage"]
-                .round(2)
-            )
+        daily_table["Percentage"].round(2)
+    )
     
     st.dataframe(
-                daily_table[
-                    [
-                        "Date",
-                        "Count",
-                        "Scheduled",
-                        "Percentage",
-                    ]
-                ],
-                use_container_width=True,
-                hide_index=True,
-            )
+        daily_table[
+            [
+                "Date",
+                "Count",
+                "Scheduled",
+                "Percentage",
+            ]
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
     
-    else:
+        else:
             st.info(
                 "Scheduled clock-in time column is unavailable."
             )
