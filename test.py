@@ -1413,21 +1413,6 @@ The accompanying table includes:
                 pd.to_datetime(daily_summary["Date"])
                   .dt.strftime("%d %b")
             )
-            
-            fig_rate_a = px.bar(
-                daily_summary,
-                x="Date Label",
-                y="Rate A",
-                text=...
-            )
-            
-            fig_rate_a.update_layout(
-                xaxis=dict(
-                    type="category",
-                    tickangle=0,
-                ),
-                bargap=0.25,
-            )
     
             # ====================================================
             # CHART A AND CHART B
