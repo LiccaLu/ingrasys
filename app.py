@@ -291,10 +291,10 @@ def process_excel(file):
     # ============================================================
     worktime = [
         "1服務期間",
-        "2服務期間 ",
-        "3服務期間 ",
-        "4服務期間 ",
-        "5服務期間 ",
+        "2服務期間",
+        "3服務期間",
+        "4服務期間",
+        "5服務期間",
     ]
     
     for col in worktime:
@@ -305,21 +305,21 @@ def process_excel(file):
             .fillna("")
             .astype(str)
             .str.split(
-                r"[~～]",
+                r"\s*[~～]\s*",
                 n=1,
                 expand=True,
             )
         )
     
         start_values = (
-            split[0]
+            split.iloc[:, 0]
             .fillna("")
             .str.strip()
         )
     
         if split.shape[1] >= 2:
             end_values = (
-                split[1]
+                split.iloc[:, 1]
                 .fillna("")
                 .str.strip()
             )
