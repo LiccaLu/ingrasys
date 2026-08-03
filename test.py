@@ -1475,7 +1475,7 @@ The accompanying table includes:
                         x=0.5,
                         xanchor="center",
                         font=dict(
-                            size=17,
+                            size=24,
                             color="#111111",
                         ),
                     ),
@@ -1563,7 +1563,7 @@ The accompanying table includes:
                     marker_color="#C95A08",
                     textposition="outside",
                     textfont=dict(
-                        size=13,
+                        size=16,
                         color="#111111",
                     ),
                     cliponaxis=False,
@@ -1591,7 +1591,7 @@ The accompanying table includes:
                         x=0.5,
                         xanchor="center",
                         font=dict(
-                            size=17,
+                            size=24,
                             color="#111111",
                         ),
                     ),
