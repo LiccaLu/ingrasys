@@ -1476,7 +1476,7 @@ The accompanying table includes:
                     paper_bgcolor="#FFFFFF",
                     plot_bgcolor="#FFFFFF",
                     showlegend=False,
-                    bargap=0.35,
+                    bargap=0.55,
                     margin=dict(
                         l=80,
                         r=50,
@@ -1621,7 +1621,7 @@ The accompanying table includes:
                     paper_bgcolor="#FFFFFF",
                     plot_bgcolor="#FFFFFF",
                     showlegend=False,
-                    bargap=0.35,
+                    bargap=0.55,
                     margin=dict(
                         l=80,
                         r=50,
