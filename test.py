@@ -1756,6 +1756,469 @@ The accompanying table includes:
                 "Scheduled clock-in time or final attendance "
                 "status column is unavailable."
             )
+
+    # ============================================================
+    # ABSENCE RATE TREND BY DEPARTMENT
+    # ============================================================
+    with st.container(border=True):
+        st.markdown(
+            '<div class="dashboard-section-title">'
+            'Absence Rate Trend by Department'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+    
+        st.markdown(
+            '<div class="dashboard-section-note">'
+            'Daily unplanned absence rate for each department '
+            'across the selected reporting period.'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+    
+        required_department_columns = [
+            "部門",
+            "上段應上班時間",
+            "判斷出勤after leave",
+        ]
+    
+        missing_department_columns = [
+            column
+            for column in required_department_columns
+            if column not in df.columns
+        ]
+    
+        if missing_department_columns:
+            st.info(
+                "Required department attendance columns are unavailable: "
+                + ", ".join(missing_department_columns)
+            )
+    
+        else:
+            department_daily = df.copy()
+    
+            # ----------------------------------------------------
+            # Convert scheduled clock-in into date
+            # ----------------------------------------------------
+            department_daily["Scheduled Start"] = pd.to_datetime(
+                department_daily["上段應上班時間"],
+                errors="coerce",
+            )
+    
+            department_daily["Date"] = (
+                department_daily["Scheduled Start"]
+                .dt.normalize()
+            )
+    
+            department_daily = department_daily[
+                department_daily["Scheduled Start"].notna()
+                & department_daily["Date"].notna()
+                & department_daily["部門"].notna()
+            ].copy()
+    
+            department_daily["部門"] = (
+                department_daily["部門"]
+                .astype(str)
+                .str.strip()
+            )
+    
+            # ----------------------------------------------------
+            # Count each employee scheduled start only once
+            # ----------------------------------------------------
+            duplicate_columns = [
+                column
+                for column in [
+                    "工號",
+                    "Scheduled Start",
+                ]
+                if column in department_daily.columns
+            ]
+    
+            if duplicate_columns:
+                department_daily = (
+                    department_daily
+                    .sort_values(duplicate_columns)
+                    .drop_duplicates(
+                        subset=duplicate_columns,
+                        keep="first",
+                    )
+                    .reset_index(drop=True)
+                )
+    
+            if department_daily.empty:
+                st.info(
+                    "No valid department attendance records are available."
+                )
+    
+            else:
+                # ------------------------------------------------
+                # Daily summary by department
+                # ------------------------------------------------
+                department_trend = (
+                    department_daily
+                    .groupby(
+                        [
+                            "Date",
+                            "部門",
+                        ],
+                        dropna=False,
+                    )
+                    .agg(
+                        Scheduled=(
+                            "判斷出勤after leave",
+                            "size",
+                        ),
+                        Absent=(
+                            "判斷出勤after leave",
+                            lambda values: (
+                                values == "Absent"
+                            ).sum(),
+                        ),
+                        Approved_Leave=(
+                            "判斷出勤after leave",
+                            lambda values: (
+                                values == "Leave Approved"
+                            ).sum(),
+                        ),
+                    )
+                    .reset_index()
+                    .sort_values(
+                        [
+                            "部門",
+                            "Date",
+                        ]
+                    )
+                )
+    
+                department_trend["Scheduled"] = (
+                    department_trend["Scheduled"]
+                    .astype(int)
+                )
+    
+                department_trend["Absent"] = (
+                    department_trend["Absent"]
+                    .astype(int)
+                )
+    
+                department_trend["Approved Leave"] = (
+                    department_trend["Approved_Leave"]
+                    .astype(int)
+                )
+    
+                # Unplanned absence rate:
+                # approved leave is excluded
+                department_trend["Absence Rate"] = (
+                    department_trend["Absent"]
+                    / department_trend[
+                        "Scheduled"
+                    ].replace(0, pd.NA)
+                    * 100
+                ).fillna(0)
+    
+                # Optional overall rate including approved leave
+                department_trend[
+                    "Absence Rate incl. Approved Leave"
+                ] = (
+                    (
+                        department_trend["Absent"]
+                        + department_trend[
+                            "Approved Leave"
+                        ]
+                    )
+                    / department_trend[
+                        "Scheduled"
+                    ].replace(0, pd.NA)
+                    * 100
+                ).fillna(0)
+    
+                # ------------------------------------------------
+                # Department selector
+                # ------------------------------------------------
+                available_departments = sorted(
+                    department_trend["部門"]
+                    .dropna()
+                    .unique()
+                    .tolist()
+                )
+    
+                selected_departments = st.multiselect(
+                    "Departments",
+                    options=available_departments,
+                    default=available_departments,
+                    key="department_trend_departments",
+                )
+    
+                department_rate_mode = st.radio(
+                    "Department absence rate",
+                    [
+                        "Excl. Approved Leave",
+                        "Incl. Approved Leave",
+                    ],
+                    horizontal=True,
+                    key="department_rate_mode",
+                    label_visibility="collapsed",
+                )
+    
+                if not selected_departments:
+                    st.info(
+                        "Select at least one department."
+                    )
+    
+                else:
+                    filtered_department_trend = (
+                        department_trend[
+                            department_trend["部門"].isin(
+                                selected_departments
+                            )
+                        ]
+                        .copy()
+                    )
+    
+                    if (
+                        department_rate_mode
+                        == "Incl. Approved Leave"
+                    ):
+                        y_column = (
+                            "Absence Rate incl. Approved Leave"
+                        )
+                        chart_note = (
+                            "Includes both unplanned absence "
+                            "and approved leave."
+                        )
+                    else:
+                        y_column = "Absence Rate"
+                        chart_note = (
+                            "Shows unplanned absence only and "
+                            "excludes approved leave."
+                        )
+    
+                    st.caption(chart_note)
+    
+                    # ------------------------------------------------
+                    # Build line chart
+                    # ------------------------------------------------
+                    fig_department_trend = px.line(
+                        filtered_department_trend,
+                        x="Date",
+                        y=y_column,
+                        color="部門",
+                        markers=True,
+                        custom_data=[
+                            "Scheduled",
+                            "Absent",
+                            "Approved Leave",
+                            "Absence Rate",
+                            (
+                                "Absence Rate incl. "
+                                "Approved Leave"
+                            ),
+                        ],
+                    )
+    
+                    fig_department_trend.update_traces(
+                        line=dict(
+                            width=3,
+                            shape="linear",
+                        ),
+                        marker=dict(
+                            size=8,
+                        ),
+                        hovertemplate=(
+                            "<b>%{fullData.name}</b><br>"
+                            "Date: %{x|%Y-%m-%d}<br>"
+                            "Scheduled shifts: "
+                            "%{customdata[0]:,}<br>"
+                            "Unplanned absent: "
+                            "%{customdata[1]:,}<br>"
+                            "Approved leave: "
+                            "%{customdata[2]:,}<br>"
+                            "Rate excl. approved leave: "
+                            "%{customdata[3]:.2f}%<br>"
+                            "Rate incl. approved leave: "
+                            "%{customdata[4]:.2f}%"
+                            "<extra></extra>"
+                        ),
+                    )
+    
+                    maximum_department_rate = (
+                        filtered_department_trend[
+                            y_column
+                        ].max()
+                    )
+    
+                    fig_department_trend.update_layout(
+                        title=dict(
+                            text=(
+                                "Absence Rate Trend "
+                                "by Department"
+                            ),
+                            x=0.5,
+                            xanchor="center",
+                            font=dict(
+                                size=22,
+                                color="#243247",
+                            ),
+                        ),
+                        height=520,
+                        paper_bgcolor="#FFFFFF",
+                        plot_bgcolor="#FFFFFF",
+                        margin=dict(
+                            l=85,
+                            r=50,
+                            t=115,
+                            b=90,
+                        ),
+                        font=dict(
+                            family="Arial, sans-serif",
+                            size=14,
+                            color="#243247",
+                        ),
+                        legend=dict(
+                            orientation="h",
+                            yanchor="bottom",
+                            y=1.02,
+                            xanchor="center",
+                            x=0.5,
+                            title_text="",
+                            font=dict(
+                                size=15,
+                            ),
+                        ),
+                        xaxis=dict(
+                            title=dict(
+                                text="Date",
+                                font=dict(size=17),
+                            ),
+                            type="date",
+                            tickformat="%Y-%m-%d",
+                            dtick="D1",
+                            showgrid=True,
+                            gridcolor="#E8ECF2",
+                            showline=True,
+                            linecolor="#222222",
+                            ticks="outside",
+                            tickfont=dict(
+                                size=14,
+                            ),
+                            automargin=True,
+                        ),
+                        yaxis=dict(
+                            title=dict(
+                                text="Absence Rate (%)",
+                                font=dict(size=17),
+                            ),
+                            range=[
+                                0,
+                                max(
+                                    5,
+                                    maximum_department_rate
+                                    * 1.18,
+                                ),
+                            ],
+                            ticksuffix="%",
+                            tickformat=".0f",
+                            showgrid=True,
+                            gridcolor="#E8ECF2",
+                            zeroline=False,
+                            showline=True,
+                            linecolor="#222222",
+                            ticks="outside",
+                            tickfont=dict(
+                                size=14,
+                            ),
+                            automargin=True,
+                        ),
+                        hoverlabel=dict(
+                            bgcolor="#243247",
+                            font_size=14,
+                            font_color="white",
+                            bordercolor="#243247",
+                        ),
+                    )
+    
+                    st.plotly_chart(
+                        fig_department_trend,
+                        use_container_width=True,
+                        config={
+                            "displayModeBar": True,
+                            "displaylogo": False,
+                            "toImageButtonOptions": {
+                                "format": "png",
+                                "filename": (
+                                    "Absence_Rate_Trend_"
+                                    "by_Department"
+                                ),
+                                "height": 1000,
+                                "width": 1800,
+                                "scale": 2,
+                            },
+                        },
+                    )
+    
+                    # ------------------------------------------------
+                    # Table
+                    # ------------------------------------------------
+                    department_trend_table = (
+                        filtered_department_trend[
+                            [
+                                "Date",
+                                "部門",
+                                "Scheduled",
+                                "Absent",
+                                "Approved Leave",
+                                "Absence Rate",
+                                (
+                                    "Absence Rate incl. "
+                                    "Approved Leave"
+                                ),
+                            ]
+                        ]
+                        .copy()
+                    )
+    
+                    department_trend_table[
+                        "Date"
+                    ] = (
+                        pd.to_datetime(
+                            department_trend_table["Date"]
+                        )
+                        .dt.strftime("%Y-%m-%d")
+                    )
+    
+                    department_trend_table[
+                        "Absence Rate"
+                    ] = (
+                        department_trend_table[
+                            "Absence Rate"
+                        ]
+                        .round(2)
+                    )
+    
+                    department_trend_table[
+                        "Absence Rate incl. Approved Leave"
+                    ] = (
+                        department_trend_table[
+                            "Absence Rate incl. Approved Leave"
+                        ]
+                        .round(2)
+                    )
+    
+                    department_trend_table = (
+                        department_trend_table
+                        .sort_values(
+                            [
+                                "Date",
+                                "部門",
+                            ]
+                        )
+                        .reset_index(drop=True)
+                    )
+    
+                    st.dataframe(
+                        department_trend_table,
+                        use_container_width=True,
+                        hide_index=True,
+                    )
                 
     # ============================================================
     # APPROVED LEAVE BY TYPE — FROM AL + OTHER LEAVE SHEETS
