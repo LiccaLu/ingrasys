@@ -1278,81 +1278,91 @@ The accompanying table includes:
 
     st.divider()
 
-    # Daily trend card
+    # ============================================================
+    # DAILY ABSENCE RATE — WITH AND WITHOUT APPROVED LEAVE
+    # ============================================================
     with st.container(border=True):
         st.markdown(
             '<div class="dashboard-section-title">'
-            'Daily Absence Trend'
+            'Daily Absence Rate'
             '</div>',
             unsafe_allow_html=True,
         )
-
+    
         st.markdown(
             '<div class="dashboard-section-note">'
-            'Scheduled shifts are counted from the scheduled clock-in time.'
+            'Comparison of total absence including approved leave '
+            'and unplanned absence excluding approved leave.'
             '</div>',
             unsafe_allow_html=True,
         )
     
-        if "上段應上班時間" in df.columns:
-            daily_mode = st.radio(
-                "Daily trend display",
-                ["Count", "Percentage"],
-                horizontal=True,
-                key="daily_mode",
-                label_visibility="collapsed",
-            )
-    
+        if (
+            "上段應上班時間" in df.columns
+            and "判斷出勤after leave" in df.columns
+        ):
             daily = df.copy()
     
-            # 將上段應上班時間轉成 datetime
+            # ----------------------------------------------------
+            # Parse scheduled clock-in time
+            # ----------------------------------------------------
             daily["Scheduled Start"] = pd.to_datetime(
                 daily["上段應上班時間"],
                 errors="coerce",
             )
     
-            # 直接從上段應上班時間取得排班日期
             daily["Date"] = (
                 daily["Scheduled Start"]
                 .dt.normalize()
             )
     
-            # 只保留確實有排班時間的紀錄
+            # Only scheduled records
             daily_scheduled = daily[
                 daily["Scheduled Start"].notna()
             ].copy()
     
-            # 避免同一員工、同一排班時間重複計算
-            daily_scheduled = (
-                daily_scheduled
-                .sort_values(
-                    [
-                        "工號",
-                        "Scheduled Start",
-                    ]
-                )
-                .drop_duplicates(
-                    subset=[
-                        "工號",
-                        "Scheduled Start",
-                    ],
-                    keep="first",
-                )
-            )
+            # One employee + one scheduled start = one shift
+            duplicate_columns = [
+                column
+                for column in [
+                    "工號",
+                    "Scheduled Start",
+                ]
+                if column in daily_scheduled.columns
+            ]
     
-            # 每日 Scheduled 與 Absent
+            if duplicate_columns:
+                daily_scheduled = (
+                    daily_scheduled
+                    .sort_values(duplicate_columns)
+                    .drop_duplicates(
+                        subset=duplicate_columns,
+                        keep="first",
+                    )
+                    .reset_index(drop=True)
+                )
+    
+            # ----------------------------------------------------
+            # Daily summary
+            # ----------------------------------------------------
             daily_summary = (
                 daily_scheduled
                 .groupby("Date")
                 .agg(
                     Scheduled=(
-                        "工號",
+                        "判斷出勤after leave",
                         "size",
                     ),
-                    Count=(
+                    Absent=(
                         "判斷出勤after leave",
                         lambda values: (
                             values == "Absent"
+                        ).sum(),
+                    ),
+                    Approved_Leave=(
+                        "判斷出勤after leave",
+                        lambda values: (
+                            values == "Leave Approved"
                         ).sum(),
                     ),
                 )
@@ -1365,132 +1375,387 @@ The accompanying table includes:
                 .astype(int)
             )
     
-            daily_summary["Count"] = (
-                daily_summary["Count"]
+            daily_summary["Absent"] = (
+                daily_summary["Absent"]
                 .astype(int)
             )
     
-            daily_summary["Percentage"] = (
-                daily_summary["Count"]
-                / daily_summary["Scheduled"]
-                .replace(0, pd.NA)
+            daily_summary["Approved Leave"] = (
+                daily_summary["Approved_Leave"]
+                .astype(int)
+            )
+    
+            # Chart A numerator:
+            # Absent + approved leave
+            daily_summary["Absence incl. Approved Leave"] = (
+                daily_summary["Absent"]
+                + daily_summary["Approved Leave"]
+            )
+    
+            # Chart A percentage
+            daily_summary["Rate A"] = (
+                daily_summary[
+                    "Absence incl. Approved Leave"
+                ]
+                / daily_summary["Scheduled"].replace(0, pd.NA)
                 * 100
             ).fillna(0)
     
-            fig_daily = px.area(
-                daily_summary,
-                x="Date",
-                y=daily_mode,
-                custom_data=[
-                    "Count",
+            # Chart B percentage:
+            # Actual unplanned absence only
+            daily_summary["Rate B"] = (
+                daily_summary["Absent"]
+                / daily_summary["Scheduled"].replace(0, pd.NA)
+                * 100
+            ).fillna(0)
+    
+            daily_summary["Date Label"] = (
+                pd.to_datetime(daily_summary["Date"])
+                  .dt.strftime("%d %b")
+            )
+    
+            # ============================================================
+            # CHART A — INCLUDING APPROVED LEAVE
+            # ============================================================
+            with st.container(border=True):
+                fig_rate_a = px.bar(
+                    daily_summary,
+                    x="Date",
+                    y="Rate A",
+                    text=daily_summary["Rate A"].map(
+                        lambda value: f"{value:.1f}%"
+                    ),
+                    custom_data=[
+                        "Scheduled",
+                        "Absent",
+                        "Approved Leave",
+                        "Absence incl. Approved Leave",
+                        "Rate A",
+                    ],
+                )
+            
+                fig_rate_a.update_traces(
+                    marker_color="#285781",
+            
+                    # Do not set width=0.42 when x is a date axis.
+                    # Plotly interprets date-axis width in milliseconds.
+                    textposition="outside",
+                    textfont=dict(
+                        size=16,
+                        color="#111111",
+                    ),
+                    cliponaxis=False,
+                    hovertemplate=(
+                        "<b>%{x|%Y-%m-%d}</b><br>"
+                        "Scheduled shifts: %{customdata[0]:,}<br>"
+                        "Unplanned absent: %{customdata[1]:,}<br>"
+                        "Approved leave: %{customdata[2]:,}<br>"
+                        "Total incl. approved leave: "
+                        "%{customdata[3]:,}<br>"
+                        "Absence rate A: %{customdata[4]:.2f}%"
+                        "<extra></extra>"
+                    ),
+                )
+            
+                maximum_rate_a = daily_summary["Rate A"].max()
+            
+                fig_rate_a.update_layout(
+                    title=dict(
+                        text=(
+                            "Chart A - Absence Rate "
+                            "incl. Approved Leave"
+                        ),
+                        x=0.5,
+                        xanchor="center",
+                        font=dict(
+                            size=22,
+                            color="#111111",
+                        ),
+                    ),
+                    height=520,
+                    paper_bgcolor="#FFFFFF",
+                    plot_bgcolor="#FFFFFF",
+                    showlegend=False,
+                    bargap=0.55,
+                    margin=dict(
+                        l=80,
+                        r=50,
+                        t=100,
+                        b=100,
+                    ),
+                    font=dict(
+                        family="Arial, sans-serif",
+                        size=14,
+                        color="#243247",
+                    ),
+                    xaxis=dict(
+                        title="",
+                        type="date",
+                        tickformat="%d %b",
+                        dtick="D1",
+                        showgrid=False,
+                        zeroline=False,
+                        showline=True,
+                        linecolor="#222222",
+                        linewidth=1.3,
+                        ticks="outside",
+                        ticklen=7,
+                        tickangle=0,
+                        tickfont=dict(
+                            size=16,
+                        ),
+                        automargin=True,
+                    ),
+                    yaxis=dict(
+                        title=dict(
+                            text="Absence Rate",
+                            font=dict(
+                                size=17,
+                            ),
+                        ),
+                        range=[
+                            0,
+                            max(
+                                5,
+                                maximum_rate_a * 1.28,
+                            ),
+                        ],
+                        ticksuffix="%",
+                        tickformat=".0f",
+                        showgrid=False,
+                        zeroline=False,
+                        showline=True,
+                        linecolor="#222222",
+                        linewidth=1.3,
+                        ticks="outside",
+                        ticklen=7,
+                        tickfont=dict(
+                            size=14,
+                        ),
+                        automargin=True,
+                    ),
+                    hoverlabel=dict(
+                        bgcolor="#243247",
+                        font_size=14,
+                        font_color="white",
+                        bordercolor="#243247",
+                    ),
+                )
+            
+                st.plotly_chart(
+                    fig_rate_a,
+                    use_container_width=True,
+                    config={
+                        "displayModeBar": True,
+                        "displaylogo": False,
+                        "toImageButtonOptions": {
+                            "format": "png",
+                            "filename": (
+                                "Absence_Rate_"
+                                "Including_Approved_Leave"
+                            ),
+                            "height": 900,
+                            "width": 1600,
+                            "scale": 2,
+                        },
+                    },
+                )
+            
+            
+            # ============================================================
+            # CHART B — EXCLUDING APPROVED LEAVE
+            # ============================================================
+            with st.container(border=True):
+                fig_rate_b = px.bar(
+                    daily_summary,
+                    x="Date",
+                    y="Rate B",
+                    text=daily_summary["Rate B"].map(
+                        lambda value: f"{value:.1f}%"
+                    ),
+                    custom_data=[
+                        "Scheduled",
+                        "Absent",
+                        "Approved Leave",
+                        "Rate B",
+                    ],
+                )
+            
+                fig_rate_b.update_traces(
+                    marker_color="#C95A08",
+            
+                    # Do not set width=0.42 when x is a date axis.
+                    textposition="outside",
+                    textfont=dict(
+                        size=16,
+                        color="#111111",
+                    ),
+                    cliponaxis=False,
+                    hovertemplate=(
+                        "<b>%{x|%Y-%m-%d}</b><br>"
+                        "Scheduled shifts: %{customdata[0]:,}<br>"
+                        "Unplanned absent: %{customdata[1]:,}<br>"
+                        "Approved leave excluded: "
+                        "%{customdata[2]:,}<br>"
+                        "Absence rate B: %{customdata[3]:.2f}%"
+                        "<extra></extra>"
+                    ),
+                )
+            
+                maximum_rate_b = daily_summary["Rate B"].max()
+            
+                fig_rate_b.update_layout(
+                    title=dict(
+                        text=(
+                            "Chart B - Absence Rate "
+                            "excl. Approved Leave (Unplanned)"
+                        ),
+                        x=0.5,
+                        xanchor="center",
+                        font=dict(
+                            size=22,
+                            color="#111111",
+                        ),
+                    ),
+                    height=520,
+                    paper_bgcolor="#FFFFFF",
+                    plot_bgcolor="#FFFFFF",
+                    showlegend=False,
+                    bargap=0.55,
+                    margin=dict(
+                        l=80,
+                        r=50,
+                        t=100,
+                        b=100,
+                    ),
+                    font=dict(
+                        family="Arial, sans-serif",
+                        size=14,
+                        color="#243247",
+                    ),
+                    xaxis=dict(
+                        title="",
+                        type="date",
+                        tickformat="%d %b",
+                        dtick="D1",
+                        showgrid=False,
+                        zeroline=False,
+                        showline=True,
+                        linecolor="#222222",
+                        linewidth=1.3,
+                        ticks="outside",
+                        ticklen=7,
+                        tickangle=0,
+                        tickfont=dict(
+                            size=14,
+                        ),
+                        automargin=True,
+                    ),
+                    yaxis=dict(
+                        title=dict(
+                            text="Absence Rate",
+                            font=dict(
+                                size=17,
+                            ),
+                        ),
+                        range=[
+                            0,
+                            max(
+                                5,
+                                maximum_rate_b * 1.28,
+                            ),
+                        ],
+                        ticksuffix="%",
+                        tickformat=".0f",
+                        showgrid=False,
+                        zeroline=False,
+                        showline=True,
+                        linecolor="#222222",
+                        linewidth=1.3,
+                        ticks="outside",
+                        ticklen=7,
+                        tickfont=dict(
+                            size=16,
+                        ),
+                        automargin=True,
+                    ),
+                    hoverlabel=dict(
+                        bgcolor="#243247",
+                        font_size=14,
+                        font_color="white",
+                        bordercolor="#243247",
+                    ),
+                )
+            
+                st.plotly_chart(
+                    fig_rate_b,
+                    use_container_width=True,
+                    config={
+                        "displayModeBar": True,
+                        "displaylogo": False,
+                        "toImageButtonOptions": {
+                            "format": "png",
+                            "filename": (
+                                "Absence_Rate_"
+                                "Excluding_Approved_Leave"
+                            ),
+                            "height": 900,
+                            "width": 1600,
+                            "scale": 2,
+                        },
+                    },
+                )
+    
+            # ====================================================
+            # DATA TABLE
+            # ====================================================
+            daily_rate_table = daily_summary[
+                [
+                    "Date Label",
                     "Scheduled",
-                    "Percentage",
-                ],
-            )
-    
-            text_positions = [
-                    "top right"
-                    if index == 0
-                    else "top left"
-                    if index == len(daily_summary) - 1
-                    else "top center"
-                    for index in range(len(daily_summary))
+                    "Absent",
+                    "Approved Leave",
+                    "Absence incl. Approved Leave",
+                    "Rate A",
+                    "Rate B",
                 ]
-            
-            fig_daily.update_traces(
-                line=dict(
-                    width=3,
-                    color="#3957A5",
-                    shape="spline",
-                ),
-                fillcolor="rgba(57, 87, 165, 0.18)",
-                marker=dict(
-                    size=7,
-                    color="#3957A5",
-                ),
-                
-                mode="lines+markers+text",
+            ].copy()
     
-                text=[
-                    (
-                        f"Count: {count}<br>"
-                        f"Scheduled: {scheduled}<br>"
-                        f"{percentage:.2f}%"
-                    )
-                    for count, scheduled, percentage in zip(
-                        daily_summary["Count"],
-                        daily_summary["Scheduled"],
-                        daily_summary["Percentage"],
-                    )
-                ],
-                
-                textposition=text_positions,
-            
-                textfont=dict(
-                    size=11,
-                    color="#243247",
-                ),
-                cliponaxis=False,
-                hovertemplate=(
-                    "<b>%{x|%Y-%m-%d}</b><br>"
-                    "Absent shifts: %{customdata[0]:,}<br>"
-                    "Scheduled shifts: %{customdata[1]:,}<br>"
-                    "Absence rate: %{customdata[2]:.2f}%"
-                    "<extra></extra>"
-                ),
+            daily_rate_table = daily_rate_table.rename(
+                columns={
+                    "Date Label": "Date",
+                    "Rate A": (
+                        "Rate A incl. Approved Leave (%)"
+                    ),
+                    "Rate B": (
+                        "Rate B excl. Approved Leave (%)"
+                    ),
+                }
             )
     
-            fig_daily = style_chart(
-                fig_daily,
-                height=360,
-                show_legend=False,
+            daily_rate_table[
+                "Rate A incl. Approved Leave (%)"
+            ] = daily_rate_table[
+                "Rate A incl. Approved Leave (%)"
+            ].round(2)
+    
+            daily_rate_table[
+                "Rate B excl. Approved Leave (%)"
+            ] = daily_rate_table[
+                "Rate B excl. Approved Leave (%)"
+            ].round(2)
+    
+            st.dataframe(
+                daily_rate_table,
+                use_container_width=True,
+                hide_index=True,
             )
     
-            
-            fig_daily.update_layout(
-                title="",
-                xaxis_title="",
-                yaxis_title=(
-                    "Absence rate (%)"
-                    if daily_mode == "Percentage"
-                    else "Absent shifts"
-                ),
-                margin=dict(
-                l=110,
-                r=110,
-                t=130,
-                b=70,
-            ),
-        )
-    
-            fig_daily.update_xaxes(
-                type="date",
-                tickformat="%d %b",
-                dtick="D1",
+        else:
+            st.info(
+                "Scheduled clock-in time or final attendance "
+                "status column is unavailable."
             )
-    
-            st.plotly_chart(
-        fig_daily,
-        use_container_width=True,
-        config={
-            "displayModeBar": True,
-            "displaylogo": False,
-            "toImageButtonOptions": {
-                "format": "png",
-                "filename": "Daily_Absence_Trend",
-                "height": 700,
-                "width": 1400,
-                "scale": 2,
-            },
-    
-            "modeBarButtonsToRemove": [
-                "lasso2d",
-                "select2d",
-                "autoScale2d",
-                "toggleSpikelines",
-            ],
-        },
-    )
                 
     # ============================================================
     # APPROVED LEAVE BY TYPE — FROM AL + OTHER LEAVE SHEETS
