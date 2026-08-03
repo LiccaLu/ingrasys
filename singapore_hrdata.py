@@ -1494,7 +1494,7 @@ The accompanying table includes:
                     xaxis=dict(
                         title="",
                         type="date",
-                        tickformat="%d %b",
+                        tickformat="%Y-%m-%d",
                         dtick="D1",
                         showgrid=False,
                         zeroline=False,
@@ -1639,7 +1639,7 @@ The accompanying table includes:
                     xaxis=dict(
                         title="",
                         type="date",
-                        tickformat="%d %b",
+                        tickformat="%Y-%m-%d",
                         dtick="D1",
                         showgrid=False,
                         zeroline=False,
