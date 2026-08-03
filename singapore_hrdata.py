@@ -1469,11 +1469,6 @@ The accompanying table includes:
         use_container_width=True,
         hide_index=True,
     )
-    
-    else:
-        st.info(
-            "Scheduled clock-in time column is unavailable."
-            )
 
 
     # Absence and Scheduled Shifts by Department and Date
