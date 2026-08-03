@@ -1761,19 +1761,20 @@ The accompanying table includes:
             )
             
     # ============================================================
-    # DAILY ATTENDANCE BY DEPARTMENT
+    # ABSENCE RATE TREND BY DEPARTMENT
     # ============================================================
     with st.container(border=True):
         st.markdown(
             '<div class="dashboard-section-title">'
-            'Daily Attendance by Department'
+            'Absence Rate Trend by Department'
             '</div>',
             unsafe_allow_html=True,
         )
     
         st.markdown(
             '<div class="dashboard-section-note">'
-            'Scheduled and absent shifts for each department by date.'
+            'Daily unplanned absence rate for each department '
+            'across the selected reporting period.'
             '</div>',
             unsafe_allow_html=True,
         )
@@ -1800,7 +1801,7 @@ The accompanying table includes:
             department_daily = df.copy()
     
             # ----------------------------------------------------
-            # Parse scheduled clock-in date and time
+            # Convert scheduled clock-in into date
             # ----------------------------------------------------
             department_daily["Scheduled Start"] = pd.to_datetime(
                 department_daily["上段應上班時間"],
@@ -1812,7 +1813,6 @@ The accompanying table includes:
                 .dt.normalize()
             )
     
-            # Only rows with a valid scheduled clock-in
             department_daily = department_daily[
                 department_daily["Scheduled Start"].notna()
                 & department_daily["Date"].notna()
@@ -1826,7 +1826,7 @@ The accompanying table includes:
             )
     
             # ----------------------------------------------------
-            # One employee + scheduled start = one scheduled shift
+            # Count each employee scheduled start only once
             # ----------------------------------------------------
             duplicate_columns = [
                 column
@@ -1850,14 +1850,14 @@ The accompanying table includes:
     
             if department_daily.empty:
                 st.info(
-                    "No valid scheduled department attendance records are available."
+                    "No valid department attendance records are available."
                 )
     
             else:
                 # ------------------------------------------------
-                # Build department summary by date
+                # Daily summary by department
                 # ------------------------------------------------
-                department_summary_all = (
+                department_trend = (
                     department_daily
                     .groupby(
                         [
@@ -1885,422 +1885,343 @@ The accompanying table includes:
                         ),
                     )
                     .reset_index()
+                    .sort_values(
+                        [
+                            "部門",
+                            "Date",
+                        ]
+                    )
                 )
     
-                department_summary_all["Scheduled"] = (
-                    department_summary_all["Scheduled"]
+                department_trend["Scheduled"] = (
+                    department_trend["Scheduled"]
                     .astype(int)
                 )
     
-                department_summary_all["Absent"] = (
-                    department_summary_all["Absent"]
+                department_trend["Absent"] = (
+                    department_trend["Absent"]
                     .astype(int)
                 )
     
-                department_summary_all["Approved Leave"] = (
-                    department_summary_all["Approved_Leave"]
+                department_trend["Approved Leave"] = (
+                    department_trend["Approved_Leave"]
                     .astype(int)
                 )
     
-                department_summary_all["Percentage"] = (
-                    department_summary_all["Absent"]
-                    / department_summary_all[
+                # Unplanned absence rate:
+                # approved leave is excluded
+                department_trend["Absence Rate"] = (
+                    department_trend["Absent"]
+                    / department_trend[
                         "Scheduled"
                     ].replace(0, pd.NA)
                     * 100
                 ).fillna(0)
     
-                # Optional rate including approved leave
-                department_summary_all[
-                    "Percentage incl. Approved Leave"
+                # Optional overall rate including approved leave
+                department_trend[
+                    "Absence Rate incl. Approved Leave"
                 ] = (
                     (
-                        department_summary_all["Absent"]
-                        + department_summary_all[
+                        department_trend["Absent"]
+                        + department_trend[
                             "Approved Leave"
                         ]
                     )
-                    / department_summary_all[
+                    / department_trend[
                         "Scheduled"
                     ].replace(0, pd.NA)
                     * 100
                 ).fillna(0)
     
-                available_department_dates = (
-                    department_summary_all["Date"]
+                # ------------------------------------------------
+                # Department selector
+                # ------------------------------------------------
+                available_departments = sorted(
+                    department_trend["部門"]
                     .dropna()
-                    .sort_values()
                     .unique()
                     .tolist()
                 )
     
-                if not available_department_dates:
+                selected_departments = st.multiselect(
+                    "Departments",
+                    options=available_departments,
+                    default=available_departments,
+                    key="department_trend_departments",
+                )
+    
+                department_rate_mode = st.radio(
+                    "Department absence rate",
+                    [
+                        "Excl. Approved Leave",
+                        "Incl. Approved Leave",
+                    ],
+                    horizontal=True,
+                    key="department_rate_mode",
+                    label_visibility="collapsed",
+                )
+    
+                if not selected_departments:
                     st.info(
-                        "No valid attendance dates are available."
+                        "Select at least one department."
                     )
     
                 else:
-                    selected_department_date = st.selectbox(
-                        "Attendance date",
-                        options=available_department_dates,
-                        format_func=lambda value: pd.Timestamp(
-                            value
-                        ).strftime("%Y-%m-%d"),
-                        key="department_attendance_date",
-                    )
-    
-                    department_chart_mode = st.radio(
-                        "Department chart display",
-                        [
-                            "Scheduled and Absent",
-                            "Absence Percentage",
-                        ],
-                        horizontal=True,
-                        key="department_chart_mode",
-                        label_visibility="collapsed",
-                    )
-    
-                    selected_department_summary = (
-                        department_summary_all[
-                            department_summary_all["Date"]
-                            == pd.Timestamp(
-                                selected_department_date
+                    filtered_department_trend = (
+                        department_trend[
+                            department_trend["部門"].isin(
+                                selected_departments
                             )
                         ]
                         .copy()
                     )
     
-                    # Remove departments with no scheduled shift
-                    selected_department_summary = (
-                        selected_department_summary[
-                            selected_department_summary[
-                                "Scheduled"
-                            ] > 0
+                    if (
+                        department_rate_mode
+                        == "Incl. Approved Leave"
+                    ):
+                        y_column = (
+                            "Absence Rate incl. Approved Leave"
+                        )
+                        chart_note = (
+                            "Includes both unplanned absence "
+                            "and approved leave."
+                        )
+                    else:
+                        y_column = "Absence Rate"
+                        chart_note = (
+                            "Shows unplanned absence only and "
+                            "excludes approved leave."
+                        )
+    
+                    st.caption(chart_note)
+    
+                    # ------------------------------------------------
+                    # Build line chart
+                    # ------------------------------------------------
+                    fig_department_trend = px.line(
+                        filtered_department_trend,
+                        x="Date",
+                        y=y_column,
+                        color="部門",
+                        markers=True,
+                        custom_data=[
+                            "Scheduled",
+                            "Absent",
+                            "Approved Leave",
+                            "Absence Rate",
+                            (
+                                "Absence Rate incl. "
+                                "Approved Leave"
+                            ),
+                        ],
+                    )
+    
+                    fig_department_trend.update_traces(
+                        line=dict(
+                            width=3,
+                            shape="linear",
+                        ),
+                        marker=dict(
+                            size=8,
+                        ),
+                        hovertemplate=(
+                            "<b>%{fullData.name}</b><br>"
+                            "Date: %{x|%Y-%m-%d}<br>"
+                            "Scheduled shifts: "
+                            "%{customdata[0]:,}<br>"
+                            "Unplanned absent: "
+                            "%{customdata[1]:,}<br>"
+                            "Approved leave: "
+                            "%{customdata[2]:,}<br>"
+                            "Rate excl. approved leave: "
+                            "%{customdata[3]:.2f}%<br>"
+                            "Rate incl. approved leave: "
+                            "%{customdata[4]:.2f}%"
+                            "<extra></extra>"
+                        ),
+                    )
+    
+                    maximum_department_rate = (
+                        filtered_department_trend[
+                            y_column
+                        ].max()
+                    )
+    
+                    fig_department_trend.update_layout(
+                        title=dict(
+                            text=(
+                                "Absence Rate Trend "
+                                "by Department"
+                            ),
+                            x=0.5,
+                            xanchor="center",
+                            font=dict(
+                                size=22,
+                                color="#243247",
+                            ),
+                        ),
+                        height=520,
+                        paper_bgcolor="#FFFFFF",
+                        plot_bgcolor="#FFFFFF",
+                        margin=dict(
+                            l=85,
+                            r=50,
+                            t=115,
+                            b=90,
+                        ),
+                        font=dict(
+                            family="Arial, sans-serif",
+                            size=14,
+                            color="#243247",
+                        ),
+                        legend=dict(
+                            orientation="h",
+                            yanchor="bottom",
+                            y=1.02,
+                            xanchor="center",
+                            x=0.5,
+                            title_text="",
+                            font=dict(
+                                size=15,
+                            ),
+                        ),
+                        xaxis=dict(
+                            title=dict(
+                                text="Date",
+                                font=dict(size=17),
+                            ),
+                            type="date",
+                            tickformat="%Y-%m-%d",
+                            dtick="D1",
+                            showgrid=True,
+                            gridcolor="#E8ECF2",
+                            showline=True,
+                            linecolor="#222222",
+                            ticks="outside",
+                            tickfont=dict(
+                                size=14,
+                            ),
+                            automargin=True,
+                        ),
+                        yaxis=dict(
+                            title=dict(
+                                text="Absence Rate (%)",
+                                font=dict(size=17),
+                            ),
+                            range=[
+                                0,
+                                max(
+                                    5,
+                                    maximum_department_rate
+                                    * 1.18,
+                                ),
+                            ],
+                            ticksuffix="%",
+                            tickformat=".0f",
+                            showgrid=True,
+                            gridcolor="#E8ECF2",
+                            zeroline=False,
+                            showline=True,
+                            linecolor="#222222",
+                            ticks="outside",
+                            tickfont=dict(
+                                size=14,
+                            ),
+                            automargin=True,
+                        ),
+                        hoverlabel=dict(
+                            bgcolor="#243247",
+                            font_size=14,
+                            font_color="white",
+                            bordercolor="#243247",
+                        ),
+                    )
+    
+                    st.plotly_chart(
+                        fig_department_trend,
+                        use_container_width=True,
+                        config={
+                            "displayModeBar": True,
+                            "displaylogo": False,
+                            "toImageButtonOptions": {
+                                "format": "png",
+                                "filename": (
+                                    "Absence_Rate_Trend_"
+                                    "by_Department"
+                                ),
+                                "height": 1000,
+                                "width": 1800,
+                                "scale": 2,
+                            },
+                        },
+                    )
+    
+                    # ------------------------------------------------
+                    # Table
+                    # ------------------------------------------------
+                    department_trend_table = (
+                        filtered_department_trend[
+                            [
+                                "Date",
+                                "部門",
+                                "Scheduled",
+                                "Absent",
+                                "Approved Leave",
+                                "Absence Rate",
+                                (
+                                    "Absence Rate incl. "
+                                    "Approved Leave"
+                                ),
+                            ]
                         ]
                         .copy()
                     )
     
-                    selected_department_summary["Date Label"] = (
+                    department_trend_table[
+                        "Date"
+                    ] = (
                         pd.to_datetime(
-                            selected_department_summary["Date"]
+                            department_trend_table["Date"]
                         )
                         .dt.strftime("%Y-%m-%d")
                     )
     
-                    if selected_department_summary.empty:
-                        st.info(
-                            "No department attendance records are available "
-                            "for the selected date."
-                        )
+                    department_trend_table[
+                        "Absence Rate"
+                    ] = (
+                        department_trend_table[
+                            "Absence Rate"
+                        ]
+                        .round(2)
+                    )
     
-                    else:
-                        # ========================================
-                        # MODE 1: Scheduled and Absent
-                        # ========================================
-                        if (
-                            department_chart_mode
-                            == "Scheduled and Absent"
-                        ):
-                            selected_department_summary = (
-                                selected_department_summary
-                                .sort_values(
-                                    "Scheduled",
-                                    ascending=True,
-                                )
-                                .reset_index(drop=True)
-                            )
+                    department_trend_table[
+                        "Absence Rate incl. Approved Leave"
+                    ] = (
+                        department_trend_table[
+                            "Absence Rate incl. Approved Leave"
+                        ]
+                        .round(2)
+                    )
     
-                            department_long = (
-                                selected_department_summary
-                                .melt(
-                                    id_vars=[
-                                        "部門",
-                                        "Date",
-                                        "Percentage",
-                                    ],
-                                    value_vars=[
-                                        "Scheduled",
-                                        "Absent",
-                                    ],
-                                    var_name="Attendance Type",
-                                    value_name="Shifts",
-                                )
-                            )
-    
-                            fig_department = px.bar(
-                                department_long,
-                                x="Shifts",
-                                y="部門",
-                                color="Attendance Type",
-                                orientation="h",
-                                barmode="group",
-                                text="Shifts",
-                                custom_data=[
-                                    "Date",
-                                    "Percentage",
-                                ],
-                                color_discrete_map={
-                                    "Scheduled": "#3957A5",
-                                    "Absent": "#FF5A5F",
-                                },
-                            )
-    
-                            fig_department.update_traces(
-                                textposition="outside",
-                                cliponaxis=False,
-                                textfont=dict(
-                                    size=14,
-                                    color="#243247",
-                                ),
-                                hovertemplate=(
-                                    "<b>%{y}</b><br>"
-                                    "Date: %{customdata[0]|%Y-%m-%d}<br>"
-                                    "%{fullData.name}: %{x:,}<br>"
-                                    "Absence rate: "
-                                    "%{customdata[1]:.2f}%"
-                                    "<extra></extra>"
-                                ),
-                            )
-    
-                            department_height = max(
-                                420,
-                                len(
-                                    selected_department_summary
-                                ) * 75 + 150,
-                            )
-    
-                            fig_department = style_chart(
-                                fig_department,
-                                height=department_height,
-                                show_legend=True,
-                                legend_position="bottom",
-                            )
-    
-                            fig_department.update_layout(
-                                title_text="",
-                                xaxis_title="Number of shifts",
-                                yaxis_title="",
-                                bargap=0.30,
-                                margin=dict(
-                                    l=250,
-                                    r=90,
-                                    t=45,
-                                    b=135,
-                                ),
-                                legend=dict(
-                                    orientation="h",
-                                    yanchor="top",
-                                    y=-0.22,
-                                    xanchor="center",
-                                    x=0.5,
-                                    title_text="",
-                                    font=dict(size=14),
-                                ),
-                            )
-                            
-                            fig_department.update_xaxes(
-                                title_standoff=18,
-                            )
-    
-                        # ========================================
-                        # MODE 2: Absence Percentage
-                        # ========================================
-                        else:
-                            selected_department_summary = (
-                                selected_department_summary
-                                .sort_values(
-                                    "Percentage",
-                                    ascending=True,
-                                )
-                                .reset_index(drop=True)
-                            )
-    
-                            selected_department_summary[
-                                "Percentage Label"
-                            ] = (
-                                selected_department_summary[
-                                    "Percentage"
-                                ]
-                                .map(
-                                    lambda value: (
-                                        f"{value:.2f}%"
-                                    )
-                                )
-                            )
-    
-                            fig_department = px.bar(
-                                selected_department_summary,
-                                x="Percentage",
-                                y="部門",
-                                orientation="h",
-                                text="Percentage Label",
-                                custom_data=[
-                                    "Scheduled",
-                                    "Absent",
-                                    "Approved Leave",
-                                    "Percentage",
-                                ],
-                            )
-    
-                            fig_department.update_traces(
-                                marker_color="#3957A5",
-                                textposition="outside",
-                                cliponaxis=False,
-                                textfont=dict(
-                                    size=14,
-                                    color="#243247",
-                                ),
-                                hovertemplate=(
-                                    "<b>%{y}</b><br>"
-                                    "Scheduled shifts: "
-                                    "%{customdata[0]:,}<br>"
-                                    "Absent shifts: "
-                                    "%{customdata[1]:,}<br>"
-                                    "Approved leave: "
-                                    "%{customdata[2]:,}<br>"
-                                    "Absence rate: "
-                                    "%{customdata[3]:.2f}%"
-                                    "<extra></extra>"
-                                ),
-                            )
-    
-                            department_height = max(
-                                420,
-                                len(
-                                    selected_department_summary
-                                ) * 70 + 140,
-                            )
-    
-                            fig_department = style_chart(
-                                fig_department,
-                                height=department_height,
-                                show_legend=False,
-                            )
-    
-                            maximum_department_rate = (
-                                selected_department_summary[
-                                    "Percentage"
-                                ].max()
-                            )
-    
-                            fig_department.update_layout(
-                                title_text="",
-                                xaxis_title="Absence rate",
-                                yaxis_title="",
-                                bargap=0.38,
-                                margin=dict(
-                                    l=250,
-                                    r=100,
-                                    t=45,
-                                    b=75,
-                                ),
-                            )
-    
-                            fig_department.update_xaxes(
-                                range=[
-                                    0,
-                                    max(
-                                        5,
-                                        maximum_department_rate
-                                        * 1.25,
-                                    ),
-                                ],
-                                ticksuffix="%",
-                                tickformat=".0f",
-                            )
-    
-                        # ------------------------------------------------
-                        # Display department chart
-                        # ------------------------------------------------
-                        st.plotly_chart(
-                            fig_department,
-                            use_container_width=True,
-                            config={
-                                "displayModeBar": True,
-                                "displaylogo": False,
-                                "toImageButtonOptions": {
-                                    "format": "png",
-                                    "filename": (
-                                        "Daily_Attendance_by_Department_"
-                                        + pd.Timestamp(
-                                            selected_department_date
-                                        ).strftime("%Y-%m-%d")
-                                        + "_"
-                                        + department_chart_mode
-                                        .replace(" ", "_")
-                                    ),
-                                    "height": 1000,
-                                    "width": 1800,
-                                    "scale": 2,
-                                },
-                            },
-                        )
-    
-                        # ------------------------------------------------
-                        # Department summary table
-                        # ------------------------------------------------
-                        department_table = (
-                            selected_department_summary[
-                                [
-                                    "Date Label",
-                                    "部門",
-                                    "Scheduled",
-                                    "Absent",
-                                    "Approved Leave",
-                                    "Percentage",
-                                    (
-                                        "Percentage incl. "
-                                        "Approved Leave"
-                                    ),
-                                ]
+                    department_trend_table = (
+                        department_trend_table
+                        .sort_values(
+                            [
+                                "Date",
+                                "部門",
                             ]
-                            .copy()
-                            .rename(
-                                columns={
-                                    "Date Label": "Date",
-                                    (
-                                        "Percentage incl. "
-                                        "Approved Leave"
-                                    ): (
-                                        "Rate incl. "
-                                        "Approved Leave (%)"
-                                    ),
-                                }
-                            )
                         )
+                        .reset_index(drop=True)
+                    )
     
-                        department_table[
-                            "Percentage"
-                        ] = (
-                            department_table[
-                                "Percentage"
-                            ]
-                            .round(2)
-                        )
-    
-                        department_table[
-                            "Rate incl. Approved Leave (%)"
-                        ] = (
-                            department_table[
-                                "Rate incl. Approved Leave (%)"
-                            ]
-                            .round(2)
-                        )
-    
-                        department_table = (
-                            department_table
-                            .sort_values(
-                                "Scheduled",
-                                ascending=False,
-                            )
-                            .reset_index(drop=True)
-                        )
-    
-                        st.dataframe(
-                            department_table,
-                            use_container_width=True,
-                            hide_index=True,
-                        )
+                    st.dataframe(
+                        department_trend_table,
+                        use_container_width=True,
+                        hide_index=True,
+                    )
                     
     # ============================================================
     # APPROVED LEAVE BY TYPE — FROM AL + OTHER LEAVE SHEETS
