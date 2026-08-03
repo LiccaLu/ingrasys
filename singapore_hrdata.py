@@ -1243,22 +1243,25 @@ A scheduled shift has no actual clock-in, but an actual clock-out exists.
 ### Forgot Clock-out
 A scheduled shift has an actual clock-in, but no actual clock-out.
 
-### Daily Absence Trend
+### Daily Absence Rate
 
-This chart summarizes overall attendance performance across the selected reporting period.
+These charts summarize daily absence rates across the selected reporting period and distinguish between overall absence and unplanned absence.
 
-- **X-axis:** Attendance date.
-- **Y-axis:** Number of absent shifts or absence rate (%), depending on the selected view.
-- **Count mode:** Displays the total number of employees recorded as absent each day.
-- **Percentage mode:** Displays the daily absence rate, calculated as:
+#### Chart A – Absence Rate incl. Approved Leave
+- Includes both approved leave and unplanned absences.
+- Formula:
+
+  **(Absent shifts + Approved leave) ÷ Scheduled shifts × 100**
+
+This represents the overall workforce unavailable for scheduled work.
+
+#### Chart B – Absence Rate excl. Approved Leave (Unplanned)
+- Excludes approved leave and counts only unplanned absences.
+- Formula:
 
   **Absent shifts ÷ Scheduled shifts × 100**
 
-
-Each data point also displays:
-- Absent shifts
-- Scheduled shifts
-- Daily absence rate
+This highlights unexpected absenteeism and attendance issues.
 
 ### Daily Attendance by Department
 
