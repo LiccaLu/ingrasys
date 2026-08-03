@@ -1756,6 +1756,7 @@ The accompanying table includes:
                 "Scheduled clock-in time or final attendance "
                 "status column is unavailable."
             )
+            
     # ============================================================
     # DAILY ATTENDANCE BY DEPARTMENT
     # ============================================================
@@ -2081,9 +2082,21 @@ The accompanying table includes:
                                     l=250,
                                     r=90,
                                     t=45,
-                                    b=90,
+                                    b=135,
                                 ),
-                                legend_title_text="",
+                                legend=dict(
+                                    orientation="h",
+                                    yanchor="top",
+                                    y=-0.22,
+                                    xanchor="center",
+                                    x=0.5,
+                                    title_text="",
+                                    font=dict(size=14),
+                                ),
+                            )
+                            
+                            fig_department.update_xaxes(
+                                title_standoff=18,
                             )
     
                         # ========================================
