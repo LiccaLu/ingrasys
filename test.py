@@ -1444,7 +1444,6 @@ The accompanying table includes:
     
                 fig_rate_a.update_traces(
                     marker_color="#285781",
-                    width=0.42,
                     textposition="outside",
                     textfont=dict(
                         size=13,
@@ -1562,7 +1561,6 @@ The accompanying table includes:
     
                 fig_rate_b.update_traces(
                     marker_color="#C95A08",
-                    width=0.42,
                     textposition="outside",
                     textfont=dict(
                         size=13,
