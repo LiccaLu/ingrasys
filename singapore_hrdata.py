@@ -5,7 +5,7 @@ from typing import Optional
 import pandas as pd
 import plotly.express as px
 import streamlit as st
-
+import plotly.graph_objects as go
 
 # ============================================================
 # PAGE CONFIG
@@ -325,6 +325,10 @@ defaults = {
     "attendance_df": None,
     "al_df": None,
     "other_leave_df": None,
+
+    # Recruitment weekly report
+    "recruitment_hc_df": None,
+
     "file_names": {},
     "history": [],
 }
@@ -663,7 +667,353 @@ def read_and_process(attendance_file, leave_file):
     
     return attendance, al, other, attendance_sheet
 
+# ============================================================
+# RECRUITMENT WEEKLY REPORT
+# ============================================================
+def read_recruitment_weekly_reports(files):
+    """
+    Read multiple Recruitment Weekly Report Excel files.
 
+    For each dated Total HC column:
+    - Use Type column to identify DL / IDL
+    - Sum Total HC for DL
+    - Sum Total HC for IDL
+    - Total HC = DL + IDL
+
+    If the same week appears in multiple files,
+    the later uploaded file is kept.
+    """
+
+    all_weeks = []
+
+    for upload_order, file in enumerate(files):
+
+        excel = pd.ExcelFile(file)
+
+        # --------------------------------------------------------
+        # Find Recruiting report weekly sheet
+        # --------------------------------------------------------
+        weekly_sheet = None
+
+        for sheet_name in excel.sheet_names:
+            clean_name = (
+                str(sheet_name)
+                .strip()
+                .lower()
+            )
+
+            if clean_name == "recruiting report weekly":
+                weekly_sheet = sheet_name
+                break
+
+        if weekly_sheet is None:
+            raise ValueError(
+                f"{file.name}: "
+                "cannot find 'Recruiting report weekly' sheet."
+            )
+
+        # Read raw structure because this report has multi-row headers
+        raw = pd.read_excel(
+            file,
+            sheet_name=weekly_sheet,
+            header=None,
+        )
+
+        # --------------------------------------------------------
+        # Find Type column
+        # --------------------------------------------------------
+        type_row = None
+        type_col = None
+
+        search_rows = min(20, len(raw))
+
+        for row_index in range(search_rows):
+            for col_index in range(raw.shape[1]):
+
+                value = raw.iat[
+                    row_index,
+                    col_index,
+                ]
+
+                text = (
+                    str(value)
+                    .replace("\n", " ")
+                    .strip()
+                    .lower()
+                )
+
+                if text == "type":
+                    type_row = row_index
+                    type_col = col_index
+                    break
+
+            if type_col is not None:
+                break
+
+        if type_col is None:
+            raise ValueError(
+                f"{file.name}: "
+                "cannot find the Type column."
+            )
+
+        # --------------------------------------------------------
+        # Find all Total HC columns
+        # --------------------------------------------------------
+        total_hc_columns = []
+
+        for row_index in range(search_rows):
+
+            for col_index in range(raw.shape[1]):
+
+                value = raw.iat[
+                    row_index,
+                    col_index,
+                ]
+
+                text = (
+                    str(value)
+                    .replace("\n", "")
+                    .replace(" ", "")
+                    .lower()
+                )
+
+                # Covers:
+                # Total HC
+                # Total HC (A+B-C)(4)
+                # TotalHC(A+B-C)(4)
+                if "totalhc" in text:
+                    total_hc_columns.append(
+                        (
+                            row_index,
+                            col_index,
+                        )
+                    )
+
+        if not total_hc_columns:
+            raise ValueError(
+                f"{file.name}: "
+                "cannot find Total HC column."
+            )
+
+        # --------------------------------------------------------
+        # Helper: find the date belonging to each Total HC column
+        # --------------------------------------------------------
+        def find_week_date(
+            header_row,
+            header_col,
+        ):
+            candidates = []
+
+            # Search above the Total HC column and a few columns left.
+            # This handles merged Excel date headers.
+            for row_index in range(
+                max(0, header_row - 8),
+                header_row + 1,
+            ):
+                for col_index in range(
+                    max(0, header_col - 4),
+                    header_col + 1,
+                ):
+
+                    value = raw.iat[
+                        row_index,
+                        col_index,
+                    ]
+
+                    # Native Excel date
+                    if isinstance(
+                        value,
+                        (
+                            pd.Timestamp,
+                            datetime,
+                        ),
+                    ):
+                        candidates.append(
+                            (
+                                row_index,
+                                col_index,
+                                pd.Timestamp(value),
+                            )
+                        )
+                        continue
+
+                    # Try text date
+                    if pd.notna(value):
+
+                        text = str(value).strip()
+
+                        # Avoid accidentally reading HC numbers
+                        if (
+                            "/" in text
+                            or "-" in text
+                        ):
+                            parsed = pd.to_datetime(
+                                text,
+                                errors="coerce",
+                            )
+
+                            if pd.notna(parsed):
+                                candidates.append(
+                                    (
+                                        row_index,
+                                        col_index,
+                                        parsed,
+                                    )
+                                )
+
+            if not candidates:
+                return pd.NaT
+
+            # Choose candidate closest to Total HC header
+            candidates.sort(
+                key=lambda item: (
+                    abs(
+                        header_row
+                        - item[0]
+                    )
+                    + abs(
+                        header_col
+                        - item[1]
+                    )
+                )
+            )
+
+            return (
+                pd.Timestamp(
+                    candidates[0][2]
+                )
+                .normalize()
+            )
+
+        # --------------------------------------------------------
+        # Process every dated Total HC block
+        # --------------------------------------------------------
+        for (
+            total_header_row,
+            total_col,
+        ) in total_hc_columns:
+
+            week_date = find_week_date(
+                total_header_row,
+                total_col,
+            )
+
+            if pd.isna(week_date):
+                continue
+
+            # Data starts below both Type and Total HC headers
+            data_start = max(
+                type_row,
+                total_header_row,
+            ) + 1
+
+            type_values = (
+                raw.iloc[
+                    data_start:,
+                    type_col,
+                ]
+                .fillna("")
+                .astype(str)
+                .str.strip()
+                .str.upper()
+            )
+
+            hc_values = pd.to_numeric(
+                raw.iloc[
+                    data_start:,
+                    total_col,
+                ],
+                errors="coerce",
+            ).fillna(0)
+
+            # Reset indexes so boolean filtering aligns correctly
+            type_values = (
+                type_values
+                .reset_index(drop=True)
+            )
+
+            hc_values = (
+                hc_values
+                .reset_index(drop=True)
+            )
+
+            dl_hc = int(
+                hc_values[
+                    type_values == "DL"
+                ].sum()
+            )
+
+            idl_hc = int(
+                hc_values[
+                    type_values == "IDL"
+                ].sum()
+            )
+
+            total_hc = (
+                dl_hc
+                + idl_hc
+            )
+
+            # Ignore completely empty future blocks
+            if total_hc == 0:
+                continue
+
+            all_weeks.append(
+                {
+                    "Date": week_date,
+                    "DL": dl_hc,
+                    "IDL": idl_hc,
+                    "Total HC": total_hc,
+                    "Source File": file.name,
+                    "_upload_order": upload_order,
+                }
+            )
+
+    if not all_weeks:
+        raise ValueError(
+            "No usable DL / IDL Total HC data "
+            "was found in the uploaded Recruitment reports."
+        )
+
+    recruitment_df = pd.DataFrame(
+        all_weeks
+    )
+
+    recruitment_df["Date"] = (
+        pd.to_datetime(
+            recruitment_df["Date"],
+            errors="coerce",
+        )
+    )
+
+    recruitment_df = (
+        recruitment_df
+        .dropna(
+            subset=["Date"]
+        )
+        .sort_values(
+            [
+                "Date",
+                "_upload_order",
+            ]
+        )
+
+        # If several reports contain the same historical week,
+        # keep the later uploaded report.
+        .drop_duplicates(
+            subset=["Date"],
+            keep="last",
+        )
+
+        .sort_values("Date")
+        .drop(
+            columns=["_upload_order"]
+        )
+        .reset_index(drop=True)
+    )
+
+    return recruitment_df
+    
 
 def style_chart(
     fig,
@@ -910,6 +1260,112 @@ if page == "01  Upload":
             label_visibility="collapsed"
         )
 
+    # ========================================================
+    # RECRUITMENT WEEKLY REPORTS
+    # ========================================================
+    st.markdown(
+        '<div class="section-title">'
+        'RECRUITMENT WEEKLY REPORTS'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    recruitment_files = st.file_uploader(
+        "Recruitment Weekly Reports",
+        type=["xlsx", "xls"],
+        accept_multiple_files=True,
+        key="recruitment_upload",
+        label_visibility="collapsed",
+    )
+
+    # --------------------------------------------------------
+    # Automatically process Recruitment reports after upload
+    # No additional button required
+    # --------------------------------------------------------
+    if recruitment_files:
+
+        current_recruitment_files = tuple(
+            (
+                file.name,
+                file.size,
+            )
+            for file in recruitment_files
+        )
+
+        previous_recruitment_files = (
+            st.session_state.get(
+                "recruitment_file_signature"
+            )
+        )
+
+        # Only reprocess when uploaded files actually change
+        if (
+            current_recruitment_files
+            != previous_recruitment_files
+        ):
+            try:
+                with st.spinner(
+                    "Reading Recruitment Weekly Reports..."
+                ):
+                    recruitment_hc_df = (
+                        read_recruitment_weekly_reports(
+                            recruitment_files
+                        )
+                    )
+
+                    st.session_state[
+                        "recruitment_hc_df"
+                    ] = recruitment_hc_df
+
+                    st.session_state[
+                        "recruitment_file_signature"
+                    ] = (
+                        current_recruitment_files
+                    )
+
+                    st.session_state.file_names[
+                        "recruitment"
+                    ] = [
+                        file.name
+                        for file
+                        in recruitment_files
+                    ]
+
+                st.success(
+                    f"{len(recruitment_files)} "
+                    "Recruitment Weekly Report(s) loaded."
+                )
+
+            except Exception as exc:
+                st.session_state[
+                    "recruitment_hc_df"
+                ] = None
+
+                st.error(
+                    "Unable to read Recruitment Weekly Reports: "
+                    f"{exc}"
+                )
+
+        else:
+            recruitment_hc_df = (
+                st.session_state.get(
+                    "recruitment_hc_df"
+                )
+            )
+
+            if (
+                isinstance(
+                    recruitment_hc_df,
+                    pd.DataFrame,
+                )
+                and not recruitment_hc_df.empty
+            ):
+                st.success(
+                    f"{len(recruitment_files)} "
+                    "Recruitment Weekly Report(s) loaded."
+                )
+                
+    
     # Process button directly below uploaders
     process_clicked = st.button(
         "Process Files",
@@ -1280,6 +1736,336 @@ The accompanying table includes:
         )
 
     st.divider()
+
+    # ============================================================
+    # WEEKLY TO MONTHLY REVIEW — DL & IDL
+    # ============================================================
+    recruitment_hc_df = (
+        st.session_state.get(
+            "recruitment_hc_df"
+        )
+    )
+
+    if (
+        isinstance(
+            recruitment_hc_df,
+            pd.DataFrame,
+        )
+        and not recruitment_hc_df.empty
+    ):
+
+        with st.container(border=True):
+
+            st.markdown(
+                '<div class="dashboard-section-title">'
+                'Weekly to Monthly Review (DL & IDL)'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+
+            st.markdown(
+                '<div class="dashboard-section-note">'
+                'Weekly DL and IDL headcount composition '
+                'from uploaded Recruitment Weekly Reports.'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+
+            # Use all uploaded weeks.
+            # If you later want only latest 5 weeks,
+            # change this to .tail(5)
+            hc_chart_data = (
+                recruitment_hc_df
+                .sort_values("Date")
+                .copy()
+            )
+
+            hc_chart_data["Week"] = (
+                pd.to_datetime(
+                    hc_chart_data["Date"]
+                )
+                .dt.strftime(
+                    "Wk %m/%d"
+                )
+            )
+
+            # Mark newest report as Current
+            if not hc_chart_data.empty:
+
+                latest_index = (
+                    hc_chart_data.index[-1]
+                )
+
+                latest_date = (
+                    pd.to_datetime(
+                        hc_chart_data.loc[
+                            latest_index,
+                            "Date"
+                        ]
+                    )
+                )
+
+                hc_chart_data.loc[
+                    latest_index,
+                    "Week"
+                ] = (
+                    "Current ("
+                    + latest_date.strftime(
+                        "%m/%d"
+                    )
+                    + ")"
+                )
+
+            # ----------------------------------------------------
+            # Graph
+            # ----------------------------------------------------
+            fig_hc = go.Figure()
+
+            # DL
+            fig_hc.add_trace(
+                go.Bar(
+                    x=hc_chart_data["Week"],
+                    y=hc_chart_data["DL"],
+                    name="DL",
+                    marker_color="#34738F",
+                    text=hc_chart_data["DL"],
+                    textposition="inside",
+                    insidetextanchor="middle",
+                    textfont=dict(
+                        size=16,
+                        color="white",
+                    ),
+                    customdata=hc_chart_data[
+                        [
+                            "Date",
+                            "Source File",
+                        ]
+                    ],
+                    hovertemplate=(
+                        "<b>%{x}</b><br>"
+                        "DL: %{y:,}<br>"
+                        "Date: %{customdata[0]|%Y-%m-%d}<br>"
+                        "Source: %{customdata[1]}"
+                        "<extra></extra>"
+                    ),
+                )
+            )
+
+            # IDL
+            fig_hc.add_trace(
+                go.Bar(
+                    x=hc_chart_data["Week"],
+                    y=hc_chart_data["IDL"],
+                    name="IDL",
+                    marker_color="#ED7A3B",
+                    text=hc_chart_data["IDL"],
+                    textposition="inside",
+                    insidetextanchor="middle",
+                    textfont=dict(
+                        size=16,
+                        color="white",
+                    ),
+                    customdata=hc_chart_data[
+                        [
+                            "Date",
+                            "Source File",
+                        ]
+                    ],
+                    hovertemplate=(
+                        "<b>%{x}</b><br>"
+                        "IDL: %{y:,}<br>"
+                        "Date: %{customdata[0]|%Y-%m-%d}<br>"
+                        "Source: %{customdata[1]}"
+                        "<extra></extra>"
+                    ),
+                )
+            )
+
+            # Total HC line
+            fig_hc.add_trace(
+                go.Scatter(
+                    x=hc_chart_data["Week"],
+                    y=hc_chart_data[
+                        "Total HC"
+                    ],
+                    name="Total HC",
+                    mode=(
+                        "lines+markers+text"
+                    ),
+                    line=dict(
+                        color="#243247",
+                        width=4,
+                    ),
+                    marker=dict(
+                        color="#243247",
+                        size=10,
+                    ),
+                    text=hc_chart_data[
+                        "Total HC"
+                    ].map(
+                        lambda value: (
+                            f"{int(value):,}"
+                        )
+                    ),
+                    textposition="top center",
+                    textfont=dict(
+                        size=16,
+                        color="#243247",
+                    ),
+                    hovertemplate=(
+                        "<b>%{x}</b><br>"
+                        "Total HC: %{y:,}"
+                        "<extra></extra>"
+                    ),
+                )
+            )
+
+            maximum_hc = (
+                hc_chart_data[
+                    "Total HC"
+                ].max()
+            )
+
+            fig_hc.update_layout(
+                title=dict(
+                    text=(
+                        "Weekly overview: "
+                        "DL + IDL composition "
+                        "(bars) vs Total HC (line)"
+                    ),
+                    x=0.5,
+                    xanchor="center",
+                    font=dict(
+                        size=20,
+                        color="#243247",
+                    ),
+                ),
+
+                barmode="stack",
+                bargap=0.60,
+
+                height=520,
+
+                paper_bgcolor="#FFFFFF",
+                plot_bgcolor="#FFFFFF",
+
+                margin=dict(
+                    l=80,
+                    r=60,
+                    t=100,
+                    b=90,
+                ),
+
+                font=dict(
+                    family="Arial, sans-serif",
+                    size=14,
+                    color="#243247",
+                ),
+
+                legend=dict(
+                    orientation="h",
+                    yanchor="top",
+                    y=-0.12,
+                    xanchor="center",
+                    x=0.5,
+                    title_text="",
+                    font=dict(
+                        size=14,
+                    ),
+                ),
+
+                xaxis=dict(
+                    title="",
+                    type="category",
+                    showgrid=False,
+                    showline=True,
+                    linecolor="#667085",
+                    ticks="outside",
+                    tickfont=dict(
+                        size=15,
+                    ),
+                    automargin=True,
+                ),
+
+                yaxis=dict(
+                    title=dict(
+                        text="Headcount",
+                        font=dict(
+                            size=16,
+                        ),
+                    ),
+                    range=[
+                        0,
+                        maximum_hc * 1.20,
+                    ],
+                    showgrid=True,
+                    gridcolor="#E5E7EB",
+                    zeroline=False,
+                    showline=True,
+                    linecolor="#667085",
+                    tickfont=dict(
+                        size=13,
+                    ),
+                    automargin=True,
+                ),
+
+                hoverlabel=dict(
+                    bgcolor="#243247",
+                    font_size=13,
+                    font_color="white",
+                    bordercolor="#243247",
+                ),
+            )
+
+            st.plotly_chart(
+                fig_hc,
+                use_container_width=True,
+                config={
+                    "displayModeBar": True,
+                    "displaylogo": False,
+                    "toImageButtonOptions": {
+                        "format": "png",
+                        "filename": (
+                            "Weekly_to_Monthly_"
+                            "DL_IDL_Headcount"
+                        ),
+                        "height": 900,
+                        "width": 1600,
+                        "scale": 2,
+                    },
+                },
+            )
+
+            # ----------------------------------------------------
+            # Table
+            # ----------------------------------------------------
+            hc_table = (
+                hc_chart_data[
+                    [
+                        "Date",
+                        "DL",
+                        "IDL",
+                        "Total HC",
+                        "Source File",
+                    ]
+                ]
+                .copy()
+            )
+
+            hc_table["Date"] = (
+                pd.to_datetime(
+                    hc_table["Date"]
+                )
+                .dt.strftime(
+                    "%Y-%m-%d"
+                )
+            )
+
+            st.dataframe(
+                hc_table,
+                use_container_width=True,
+                hide_index=True,
+            )
 
     # ============================================================
     # DAILY ABSENCE RATE — WITH AND WITHOUT APPROVED LEAVE
