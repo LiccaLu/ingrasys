@@ -1737,6 +1737,14 @@ The accompanying table includes:
 
     st.divider()
 
+    st.write(
+    "Recruitment files:",
+    st.session_state.file_names.get("recruitment")
+)
+
+    st.dataframe(
+    st.session_state.recruitment_hc_df
+)
     # ============================================================
     # WEEKLY TO MONTHLY REVIEW — DL & IDL
     # ============================================================
