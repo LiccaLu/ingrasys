@@ -949,6 +949,30 @@ def read_recruitment_weekly_reports(files):
                 ].sum()
             )
 
+            debug_idl = pd.DataFrame({
+                "Excel Row": range(
+                    data_start + 1,
+                    data_start + 1 + len(type_values),
+                ),
+                "Type": type_values,
+                "HC": hc_values,
+            })
+            
+            debug_idl = debug_idl[
+                (debug_idl["Type"] == "IDL")
+                & (debug_idl["HC"] != 0)
+            ]
+            
+            st.write(
+                f"IDL rows found in {file.name}:"
+            )
+            
+            st.dataframe(
+                debug_idl,
+                use_container_width=True,
+                hide_index=True,
+            )
+
             total_hc = (
                 dl_hc
                 + idl_hc
