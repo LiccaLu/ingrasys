@@ -1238,91 +1238,93 @@ if page == "01  Upload":
     )
 
     # --------------------------------------------------------
-    # Automatically process Recruitment reports after upload
-    # No additional button required
+    # Automatically process CURRENT uploaded recruitment files
     # --------------------------------------------------------
     if recruitment_files:
-
-        current_recruitment_files = tuple(
+    
+        current_signature = tuple(
             (
                 file.name,
                 file.size,
             )
             for file in recruitment_files
         )
-
-        previous_recruitment_files = (
+    
+        previous_signature = (
             st.session_state.get(
                 "recruitment_file_signature"
             )
         )
-
-        # Only reprocess when uploaded files actually change
+    
         if (
-            current_recruitment_files
-            != previous_recruitment_files
+            current_signature
+            != previous_signature
         ):
+    
             try:
-                with st.spinner(
-                    "Reading Recruitment Weekly Reports..."
-                ):
-                    recruitment_hc_df = (
-                        read_recruitment_weekly_reports(
-                            recruitment_files
-                        )
+    
+                recruitment_hc_df = (
+                    read_recruitment_weekly_reports(
+                        recruitment_files
                     )
-
-                    st.session_state[
-                        "recruitment_hc_df"
-                    ] = recruitment_hc_df
-
-                    st.session_state[
-                        "recruitment_file_signature"
-                    ] = (
-                        current_recruitment_files
-                    )
-
-                    st.session_state.file_names[
-                        "recruitment"
-                    ] = [
-                        file.name
-                        for file
-                        in recruitment_files
-                    ]
-
+                )
+    
+                # IMPORTANT:
+                # Replace old data completely.
+                # Do NOT concat with previous session data.
+                st.session_state[
+                    "recruitment_hc_df"
+                ] = recruitment_hc_df
+    
+                st.session_state[
+                    "recruitment_file_signature"
+                ] = current_signature
+    
+                st.session_state.file_names[
+                    "recruitment"
+                ] = [
+                    file.name
+                    for file
+                    in recruitment_files
+                ]
+    
                 st.success(
                     f"{len(recruitment_files)} "
                     "Recruitment Weekly Report(s) loaded."
                 )
-
+    
             except Exception as exc:
+    
                 st.session_state[
                     "recruitment_hc_df"
                 ] = None
-
+    
+                st.session_state.pop(
+                    "recruitment_file_signature",
+                    None,
+                )
+    
                 st.error(
                     "Unable to read Recruitment Weekly Reports: "
                     f"{exc}"
                 )
-
-        else:
-            recruitment_hc_df = (
-                st.session_state.get(
-                    "recruitment_hc_df"
-                )
-            )
-
-            if (
-                isinstance(
-                    recruitment_hc_df,
-                    pd.DataFrame,
-                )
-                and not recruitment_hc_df.empty
-            ):
-                st.success(
-                    f"{len(recruitment_files)} "
-                    "Recruitment Weekly Report(s) loaded."
-                )
+    
+    else:
+        # IMPORTANT:
+        # If uploader is empty, remove old recruitment data
+        st.session_state[
+            "recruitment_hc_df"
+        ] = None
+    
+        st.session_state.pop(
+            "recruitment_file_signature",
+            None,
+        )
+    
+        st.session_state.file_names.pop(
+            "recruitment",
+            None,
+        )
                 
     
     # Process button directly below uploaders
