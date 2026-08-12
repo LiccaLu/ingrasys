@@ -669,236 +669,158 @@ def read_and_process(attendance_file, leave_file):
 
 # ============================================================
 # RECRUITMENT WEEKLY REPORT
+# One uploaded Excel = one reporting week
 # ============================================================
 def read_recruitment_weekly_reports(files):
-    """
-    Read multiple Recruitment Weekly Report Excel files.
 
-    For each dated Total HC column:
-    - Use Type column to identify DL / IDL
-    - Sum Total HC for DL
-    - Sum Total HC for IDL
-    - Total HC = DL + IDL
+    import re
 
-    If the same week appears in multiple files,
-    the later uploaded file is kept.
-    """
-
-    all_weeks = []
+    results = []
 
     for upload_order, file in enumerate(files):
 
-        excel = pd.ExcelFile(file)
+        # ====================================================
+        # 1. GET REPORT DATE FROM FILE NAME
+        # ====================================================
+        file_name = file.name
 
-        # --------------------------------------------------------
-        # Find Recruiting report weekly sheet
-        # --------------------------------------------------------
-        weekly_sheet = None
-
-        for sheet_name in excel.sheet_names:
-            clean_name = (
-                str(sheet_name)
-                .strip()
-                .lower()
-            )
-
-            if clean_name == "recruiting report weekly":
-                weekly_sheet = sheet_name
-                break
-
-        if weekly_sheet is None:
-            raise ValueError(
-                f"{file.name}: "
-                "cannot find 'Recruiting report weekly' sheet."
-            )
-
-        # Read raw structure because this report has multi-row headers
-        raw = pd.read_excel(
-            file,
-            sheet_name=weekly_sheet,
-            header=None,
+        # Supports names such as:
+        # Recruitment Weekly Report0713.xlsx
+        # Recruitment Weekly Report 0713.xlsx
+        # Recruitment Weekly Report_0713.xlsx
+        match = re.search(
+            r"(?<!\d)(0?[1-9]|1[0-2])[-_/ ]?([0-3]?\d)(?!\d)",
+            file_name,
         )
 
-        # --------------------------------------------------------
-        # Find Type column
-        # --------------------------------------------------------
-        type_row = None
-        type_col = None
-
-        search_rows = min(20, len(raw))
-
-        for row_index in range(search_rows):
-            for col_index in range(raw.shape[1]):
-
-                value = raw.iat[
-                    row_index,
-                    col_index,
-                ]
-
-                text = (
-                    str(value)
-                    .replace("\n", " ")
-                    .strip()
-                    .lower()
-                )
-
-                if text == "type":
-                    type_row = row_index
-                    type_col = col_index
-                    break
-
-            if type_col is not None:
-                break
-
-        if type_col is None:
+        if not match:
             raise ValueError(
-                f"{file.name}: "
-                "cannot find the Type column."
+                f"{file_name}: "
+                "Unable to identify the reporting date from the file name. "
+                "Please include MMDD in the file name, for example "
+                "'Recruitment Weekly Report0713.xlsx'."
             )
 
-        # Find all Total HC columns
-        total_hc_columns = []
-        
-        for row_index in range(search_rows):
-        
-            for col_index in range(raw.shape[1]):
-        
-                value = raw.iat[
-                    row_index,
-                    col_index,
-                ]
-        
-                text = (
-                    str(value)
-                    .replace("\n", "")
-                    .replace(" ", "")
-                    .lower()
-                )
-        
-                if "totalhc" in text:
-                    total_hc_columns.append(
-                        (
-                            row_index,
-                            col_index,
-                        )
-                    )
+        month = int(match.group(1))
+        day = int(match.group(2))
 
-        if not total_hc_columns:
-            raise ValueError(
-                f"{file.name}: "
-                "cannot find Total HC column."
+        # Use current reporting year
+        report_year = datetime.now().year
+
+        report_date = pd.Timestamp(
+            year=report_year,
+            month=month,
+            day=day,
+        )
+
+        # ====================================================
+        # 2. READ ALL SHEETS
+        # ====================================================
+        excel = pd.ExcelFile(file)
+
+        file_dl = 0
+        file_idl = 0
+
+        used_sheets = []
+
+        for sheet_name in excel.sheet_names:
+
+            raw = pd.read_excel(
+                file,
+                sheet_name=sheet_name,
+                header=None,
             )
 
-        # --------------------------------------------------------
-        # Helper: find the date belonging to each Total HC column
-        # --------------------------------------------------------
-        def find_week_date(
-            header_row,
-            header_col,
-        ):
-            candidates = []
+            if raw.empty:
+                continue
 
-            # Search above the Total HC column and a few columns left.
-            # This handles merged Excel date headers.
-            for row_index in range(
-                max(0, header_row - 8),
-                header_row + 1,
-            ):
-                for col_index in range(
-                    max(0, header_col - 4),
-                    header_col + 1,
-                ):
+            search_rows = min(
+                20,
+                len(raw),
+            )
+
+            # =================================================
+            # 3. FIND TYPE COLUMN
+            # =================================================
+            type_row = None
+            type_col = None
+
+            for row_index in range(search_rows):
+
+                for col_index in range(raw.shape[1]):
 
                     value = raw.iat[
                         row_index,
                         col_index,
                     ]
 
-                    # Native Excel date
-                    if isinstance(
-                        value,
-                        (
-                            pd.Timestamp,
-                            datetime,
-                        ),
-                    ):
-                        candidates.append(
-                            (
-                                row_index,
-                                col_index,
-                                pd.Timestamp(value),
-                            )
-                        )
-                        continue
-
-                    # Try text date
-                    if pd.notna(value):
-
-                        text = str(value).strip()
-
-                        # Avoid accidentally reading HC numbers
-                        if (
-                            "/" in text
-                            or "-" in text
-                        ):
-                            parsed = pd.to_datetime(
-                                text,
-                                errors="coerce",
-                            )
-
-                            if pd.notna(parsed):
-                                candidates.append(
-                                    (
-                                        row_index,
-                                        col_index,
-                                        parsed,
-                                    )
-                                )
-
-            if not candidates:
-                return pd.NaT
-
-            # Choose candidate closest to Total HC header
-            candidates.sort(
-                key=lambda item: (
-                    abs(
-                        header_row
-                        - item[0]
+                    text = (
+                        str(value)
+                        .replace("\n", " ")
+                        .strip()
+                        .lower()
                     )
-                    + abs(
-                        header_col
-                        - item[1]
-                    )
-                )
-            )
 
-            return (
-                pd.Timestamp(
-                    candidates[0][2]
-                )
-                .normalize()
-            )
+                    if text == "type":
+                        type_row = row_index
+                        type_col = col_index
+                        break
 
-        # --------------------------------------------------------
-        # Process every dated Total HC block
-        # --------------------------------------------------------
-        for (
-            total_header_row,
-            total_col,
-        ) in total_hc_columns:
+                if type_col is not None:
+                    break
 
-            week_date = find_week_date(
-                total_header_row,
-                total_col,
-            )
-
-            if pd.isna(week_date):
+            if type_col is None:
                 continue
 
-            # Data starts below both Type and Total HC headers
+            # =================================================
+            # 4. FIND CURRENT WEEK TOTAL HC ONLY
+            #
+            # We ONLY want:
+            # HC this week
+            # Total HC (A+B-C)(4)
+            #
+            # We DO NOT want:
+            # HC last week → Total HC (A)
+            # =================================================
+            total_row = None
+            total_col = None
+
+            for row_index in range(search_rows):
+
+                for col_index in range(raw.shape[1]):
+
+                    value = raw.iat[
+                        row_index,
+                        col_index,
+                    ]
+
+                    text = (
+                        str(value)
+                        .replace("\n", "")
+                        .replace(" ", "")
+                        .lower()
+                    )
+
+                    if (
+                        "totalhc" in text
+                        and "a+b-c" in text
+                    ):
+                        total_row = row_index
+                        total_col = col_index
+                        break
+
+                if total_col is not None:
+                    break
+
+            if total_col is None:
+                continue
+
+            # =================================================
+            # 5. READ CURRENT WEEK HC ROWS
+            # =================================================
             data_start = max(
                 type_row,
-                total_header_row,
+                total_row,
             ) + 1
 
             type_values = (
@@ -910,98 +832,141 @@ def read_recruitment_weekly_reports(files):
                 .astype(str)
                 .str.strip()
                 .str.upper()
-            )
-
-            hc_values = pd.to_numeric(
-                raw.iloc[
-                    data_start:,
-                    total_col,
-                ],
-                errors="coerce",
-            ).fillna(0)
-
-            # Reset indexes so boolean filtering aligns correctly
-            type_values = (
-                type_values
                 .reset_index(drop=True)
             )
 
             hc_values = (
-                hc_values
+                pd.to_numeric(
+                    raw.iloc[
+                        data_start:,
+                        total_col,
+                    ],
+                    errors="coerce",
+                )
                 .reset_index(drop=True)
             )
 
-            dl_hc = int(
+            # Only rows whose Type is DL or IDL
+            valid_mask = (
+                type_values.isin(
+                    ["DL", "IDL"]
+                )
+                & hc_values.notna()
+            )
+
+            clean_types = (
+                type_values[
+                    valid_mask
+                ]
+                .reset_index(drop=True)
+            )
+
+            clean_hc = (
                 hc_values[
-                    type_values == "DL"
+                    valid_mask
+                ]
+                .fillna(0)
+                .reset_index(drop=True)
+            )
+
+            sheet_dl = int(
+                clean_hc[
+                    clean_types == "DL"
                 ].sum()
             )
 
-            idl_hc = int(
-                hc_values[
-                    type_values == "IDL"
+            sheet_idl = int(
+                clean_hc[
+                    clean_types == "IDL"
                 ].sum()
             )
 
-            total_hc = (
-                dl_hc
-                + idl_hc
-            )
-
-            # Ignore completely empty future blocks
-            if total_hc == 0:
+            if (
+                sheet_dl == 0
+                and sheet_idl == 0
+            ):
                 continue
 
-            all_weeks.append(
-                {
-                    "Date": week_date,
-                    "DL": dl_hc,
-                    "IDL": idl_hc,
-                    "Total HC": total_hc,
-                    "Source File": file.name,
-                    "_upload_order": upload_order,
-                }
+            file_dl += sheet_dl
+            file_idl += sheet_idl
+
+            used_sheets.append(
+                sheet_name
             )
 
-    if not all_weeks:
-        raise ValueError(
-            "No usable DL / IDL Total HC data "
-            "was found in the uploaded Recruitment reports."
+        # ====================================================
+        # 6. STORE ONE ROW PER UPLOADED FILE
+        # ====================================================
+        if (
+            file_dl == 0
+            and file_idl == 0
+        ):
+            raise ValueError(
+                f"{file_name}: "
+                "No usable current-week DL / IDL Total HC data found."
+            )
+
+        results.append(
+            {
+                "Date": report_date,
+                "DL": file_dl,
+                "IDL": file_idl,
+                "Total HC": (
+                    file_dl
+                    + file_idl
+                ),
+                "Source File": file_name,
+                "Source Sheets": ", ".join(
+                    used_sheets
+                ),
+                "_upload_order": upload_order,
+            }
+        )
+
+    # ========================================================
+    # 7. COMBINE ONLY THE FILES UPLOADED THIS TIME
+    # ========================================================
+    if not results:
+        return pd.DataFrame(
+            columns=[
+                "Date",
+                "DL",
+                "IDL",
+                "Total HC",
+                "Source File",
+                "Source Sheets",
+            ]
         )
 
     recruitment_df = pd.DataFrame(
-        all_weeks
+        results
     )
 
     recruitment_df["Date"] = (
         pd.to_datetime(
-            recruitment_df["Date"],
-            errors="coerce",
+            recruitment_df["Date"]
         )
     )
 
+    # If the same date is uploaded twice,
+    # use the later uploaded file
     recruitment_df = (
         recruitment_df
-        .dropna(
-            subset=["Date"]
-        )
         .sort_values(
             [
                 "Date",
                 "_upload_order",
             ]
         )
-
-        # If several reports contain the same historical week,
-        # keep the later uploaded report.
         .drop_duplicates(
             subset=["Date"],
             keep="last",
         )
-
         .sort_values("Date")
         .drop(
-            columns=["_upload_order"]
+            columns=[
+                "_upload_order"
+            ]
         )
         .reset_index(drop=True)
     )
