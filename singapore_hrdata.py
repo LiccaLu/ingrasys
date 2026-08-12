@@ -756,9 +756,7 @@ def read_recruitment_weekly_reports(files):
                 "cannot find the Type column."
             )
 
-        # --------------------------------------------------------
-        # Find ONLY "HC this week" Total HC (A+B-C)(4)
-        # --------------------------------------------------------
+        # Find all Total HC columns
         total_hc_columns = []
         
         for row_index in range(search_rows):
@@ -777,11 +775,7 @@ def read_recruitment_weekly_reports(files):
                     .lower()
                 )
         
-                # Only use Total HC (A+B-C)(4)
-                if (
-                    "totalhc" in text
-                    and "a+b-c" in text
-                ):
+                if "totalhc" in text:
                     total_hc_columns.append(
                         (
                             row_index,
