@@ -757,31 +757,31 @@ def read_recruitment_weekly_reports(files):
             )
 
         # --------------------------------------------------------
-        # Find all Total HC columns
+        # Find ONLY "HC this week" Total HC (A+B-C)(4)
         # --------------------------------------------------------
         total_hc_columns = []
-
+        
         for row_index in range(search_rows):
-
+        
             for col_index in range(raw.shape[1]):
-
+        
                 value = raw.iat[
                     row_index,
                     col_index,
                 ]
-
+        
                 text = (
                     str(value)
                     .replace("\n", "")
                     .replace(" ", "")
                     .lower()
                 )
-
-                # Covers:
-                # Total HC
-                # Total HC (A+B-C)(4)
-                # TotalHC(A+B-C)(4)
-                if "totalhc" in text:
+        
+                # Only use Total HC (A+B-C)(4)
+                if (
+                    "totalhc" in text
+                    and "a+b-c" in text
+                ):
                     total_hc_columns.append(
                         (
                             row_index,
