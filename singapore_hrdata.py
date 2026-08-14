@@ -670,6 +670,14 @@ def read_and_process(attendance_file, leave_file):
 # ============================================================
 # RECRUITMENT WEEKLY REPORT
 # One uploaded Excel = one reporting week
+#
+# DL / IDL classification comes ONLY from:
+# "just for report"
+#
+# Rules:
+#   IDL          -> IDL
+#   Number       -> DL
+#   NOT INCLUDE  -> Exclude completely
 # ============================================================
 def read_recruitment_weekly_reports(files):
 
@@ -684,7 +692,7 @@ def read_recruitment_weekly_reports(files):
         # ====================================================
         file_name = file.name
 
-        # Supports names such as:
+        # Examples:
         # Recruitment Weekly Report0713.xlsx
         # Recruitment Weekly Report 0713.xlsx
         # Recruitment Weekly Report_0713.xlsx
@@ -704,7 +712,6 @@ def read_recruitment_weekly_reports(files):
         month = int(match.group(1))
         day = int(match.group(2))
 
-        # Use current reporting year
         report_year = datetime.now().year
 
         report_date = pd.Timestamp(
@@ -714,28 +721,41 @@ def read_recruitment_weekly_reports(files):
         )
 
         # ====================================================
-        # 2. READ ALL SHEETS
+        # 2. READ WORKBOOK
         # ====================================================
         excel = pd.ExcelFile(file)
 
+        # ----------------------------------------------------
+        # Current week HC
+        # Total HC (A+B-C)(4)
+        # ----------------------------------------------------
         file_dl = 0
         file_idl = 0
-        
-        # Latest-week hiring analysis
+
+        # ----------------------------------------------------
+        # Last week HC
+        # Total HC (A)
+        # ----------------------------------------------------
         file_dl_last_week = 0
         file_idl_last_week = 0
-        
+
+        # ----------------------------------------------------
+        # Hiring status
+        # ----------------------------------------------------
         file_dl_pending_acceptance = 0
         file_idl_pending_acceptance = 0
-        
+
         file_dl_pending_onboard = 0
         file_idl_pending_onboard = 0
-        
+
         file_dl_attrition = 0
         file_idl_attrition = 0
-        
+
         used_sheets = []
 
+        # ====================================================
+        # 3. CHECK EACH SHEET
+        # ====================================================
         for sheet_name in excel.sheet_names:
 
             raw = pd.read_excel(
@@ -753,10 +773,10 @@ def read_recruitment_weekly_reports(files):
             )
 
             # =================================================
-            # 3. FIND TYPE COLUMN
+            # FIND "JUST FOR REPORT" COLUMN
             # =================================================
-            type_row = None
-            type_col = None
+            report_group_row = None
+            report_group_col = None
 
             for row_index in range(search_rows):
 
@@ -774,26 +794,22 @@ def read_recruitment_weekly_reports(files):
                         .lower()
                     )
 
-                    if text == "type":
-                        type_row = row_index
-                        type_col = col_index
+                    if text == "just for report":
+                        report_group_row = row_index
+                        report_group_col = col_index
                         break
 
-                if type_col is not None:
+                if report_group_col is not None:
                     break
 
-            if type_col is None:
+            # This sheet is not a usable recruitment report
+            if report_group_col is None:
                 continue
 
             # =================================================
-            # 4. FIND CURRENT WEEK TOTAL HC ONLY
+            # FIND CURRENT WEEK TOTAL HC
             #
-            # We ONLY want:
-            # HC this week
             # Total HC (A+B-C)(4)
-            #
-            # We DO NOT want:
-            # HC last week → Total HC (A)
             # =================================================
             total_row = None
             total_col = None
@@ -828,68 +844,92 @@ def read_recruitment_weekly_reports(files):
             if total_col is None:
                 continue
 
-            # ============================================================
-            # FIND EXTRA COLUMNS FOR LATEST-WEEK HIRING ANALYSIS
-            # ============================================================
+            # =================================================
+            # FIND EXTRA COLUMNS
+            # =================================================
             last_week_hc_col = None
             pending_acceptance_col = None
             pending_onboard_col = None
             attrition_col = None
-            
+
+            last_week_hc_row = None
+
             for row_index in range(search_rows):
-            
+
                 for col_index in range(raw.shape[1]):
-            
+
                     value = raw.iat[
                         row_index,
                         col_index,
                     ]
-            
+
                     text = (
                         str(value)
                         .replace("\n", "")
                         .replace(" ", "")
                         .lower()
                     )
-            
-                    # ----------------------------------------------------
-                    # Last week HC = Total HC (A)
-                    # Must NOT accidentally select A+B-C
-                    # ----------------------------------------------------
+
+                    # -----------------------------------------
+                    # Last Week HC = Total HC (A)
+                    #
+                    # Exclude Total HC (A+B-C)(4)
+                    # -----------------------------------------
                     if (
                         "totalhc" in text
                         and "(a)" in text
                         and "a+b-c" not in text
                     ):
                         last_week_hc_col = col_index
-            
+                        last_week_hc_row = row_index
+
+                    # -----------------------------------------
                     # Pending acceptance
+                    # -----------------------------------------
                     elif "pendingacceptance" in text:
                         pending_acceptance_col = col_index
-            
+
+                    # -----------------------------------------
                     # Awaiting Onboarding
+                    # -----------------------------------------
                     elif "awaitingonboarding" in text:
                         pending_onboard_col = col_index
-            
+
+                    # -----------------------------------------
+                    # Attrition
                     # Resign / Transfer (C)
+                    # -----------------------------------------
                     elif (
                         "resign" in text
                         or "transfer" in text
                     ):
                         attrition_col = col_index
-                        
-            # =================================================
-            # 5. READ CURRENT WEEK HC ROWS
-            # =================================================
-            data_start = max(
-                type_row,
-                total_row,
-            ) + 1
 
-            type_values = (
+            # =================================================
+            # 4. DETERMINE DATA START ROW
+            # =================================================
+            header_rows = [
+                report_group_row,
+                total_row,
+            ]
+
+            if last_week_hc_row is not None:
+                header_rows.append(
+                    last_week_hc_row
+                )
+
+            data_start = (
+                max(header_rows)
+                + 1
+            )
+
+            # =================================================
+            # 5. READ "JUST FOR REPORT"
+            # =================================================
+            report_group = (
                 raw.iloc[
                     data_start:,
-                    type_col,
+                    report_group_col,
                 ]
                 .fillna("")
                 .astype(str)
@@ -898,7 +938,75 @@ def read_recruitment_weekly_reports(files):
                 .reset_index(drop=True)
             )
 
-            hc_values = (
+            # Clean repeated spaces
+            report_group = (
+                report_group
+                .str.replace(
+                    r"\s+",
+                    " ",
+                    regex=True,
+                )
+            )
+
+            # =================================================
+            # 6. CREATE DL / IDL MASKS
+            #
+            # IDL         -> IDL
+            # Number      -> DL
+            # NOT INCLUDE -> Excluded
+            # =================================================
+
+            # -----------------------------------------------
+            # IDL rows
+            # -----------------------------------------------
+            idl_mask = (
+                report_group == "IDL"
+            )
+
+            # -----------------------------------------------
+            # Excluded rows
+            # -----------------------------------------------
+            not_include_mask = (
+                report_group
+                == "NOT INCLUDE"
+            )
+
+            # -----------------------------------------------
+            # DL rows
+            #
+            # Any numeric value in "just for report"
+            # counts as DL:
+            #
+            # 1
+            # 2
+            # ...
+            # 9
+            # 10
+            # etc.
+            # -----------------------------------------------
+            numeric_group = pd.to_numeric(
+                report_group,
+                errors="coerce",
+            )
+
+            dl_mask = (
+                numeric_group.notna()
+                & ~not_include_mask
+            )
+
+            # Extra safety:
+            # NOT INCLUDE must never enter IDL either
+            idl_mask = (
+                idl_mask
+                & ~not_include_mask
+            )
+
+            # =================================================
+            # 7. CURRENT WEEK HC
+            #
+            # Total HC (A+B-C)(4)
+            # =================================================
+            current_hc_values = (
                 pd.to_numeric(
                     raw.iloc[
                         data_start:,
@@ -906,53 +1014,29 @@ def read_recruitment_weekly_reports(files):
                     ],
                     errors="coerce",
                 )
-                .reset_index(drop=True)
-            )
-
-            # Only rows whose Type is DL or IDL
-            valid_mask = (
-                type_values.isin(
-                    ["DL", "IDL"]
-                )
-                & hc_values.notna()
-            )
-
-            clean_types = (
-                type_values[
-                    valid_mask
-                ]
-                .reset_index(drop=True)
-            )
-
-            clean_hc = (
-                hc_values[
-                    valid_mask
-                ]
                 .fillna(0)
                 .reset_index(drop=True)
             )
 
             sheet_dl = int(
-                clean_hc[
-                    clean_types == "DL"
+                current_hc_values[
+                    dl_mask
                 ].sum()
             )
 
             sheet_idl = int(
-                clean_hc[
-                    clean_types == "IDL"
+                current_hc_values[
+                    idl_mask
                 ].sum()
             )
 
-            # ============================================================
-            # EXTRA HIRING ANALYSIS VALUES
-            # ============================================================
-            
-            # ------------------------------------------------------------
-            # Last Week HC = Total HC (A)
-            # ------------------------------------------------------------
+            # =================================================
+            # 8. LAST WEEK HC
+            #
+            # Total HC (A)
+            # =================================================
             if last_week_hc_col is not None:
-            
+
                 last_week_values = (
                     pd.to_numeric(
                         raw.iloc[
@@ -961,31 +1045,27 @@ def read_recruitment_weekly_reports(files):
                         ],
                         errors="coerce",
                     )
+                    .fillna(0)
                     .reset_index(drop=True)
                 )
-            
+
                 file_dl_last_week += int(
                     last_week_values[
-                        type_values == "DL"
-                    ]
-                    .fillna(0)
-                    .sum()
+                        dl_mask
+                    ].sum()
                 )
-            
+
                 file_idl_last_week += int(
                     last_week_values[
-                        type_values == "IDL"
-                    ]
-                    .fillna(0)
-                    .sum()
+                        idl_mask
+                    ].sum()
                 )
-            
-            
-            # ------------------------------------------------------------
-            # Pending Acceptance
-            # ------------------------------------------------------------
+
+            # =================================================
+            # 9. PENDING ACCEPTANCE
+            # =================================================
             if pending_acceptance_col is not None:
-            
+
                 pending_acceptance_values = (
                     pd.to_numeric(
                         raw.iloc[
@@ -994,31 +1074,27 @@ def read_recruitment_weekly_reports(files):
                         ],
                         errors="coerce",
                     )
+                    .fillna(0)
                     .reset_index(drop=True)
                 )
-            
+
                 file_dl_pending_acceptance += int(
                     pending_acceptance_values[
-                        type_values == "DL"
-                    ]
-                    .fillna(0)
-                    .sum()
+                        dl_mask
+                    ].sum()
                 )
-            
+
                 file_idl_pending_acceptance += int(
                     pending_acceptance_values[
-                        type_values == "IDL"
-                    ]
-                    .fillna(0)
-                    .sum()
+                        idl_mask
+                    ].sum()
                 )
-            
-            
-            # ------------------------------------------------------------
-            # Awaiting Onboarding
-            # ------------------------------------------------------------
+
+            # =================================================
+            # 10. AWAITING ONBOARDING
+            # =================================================
             if pending_onboard_col is not None:
-            
+
                 pending_onboard_values = (
                     pd.to_numeric(
                         raw.iloc[
@@ -1027,31 +1103,29 @@ def read_recruitment_weekly_reports(files):
                         ],
                         errors="coerce",
                     )
+                    .fillna(0)
                     .reset_index(drop=True)
                 )
-            
+
                 file_dl_pending_onboard += int(
                     pending_onboard_values[
-                        type_values == "DL"
-                    ]
-                    .fillna(0)
-                    .sum()
+                        dl_mask
+                    ].sum()
                 )
-            
+
                 file_idl_pending_onboard += int(
                     pending_onboard_values[
-                        type_values == "IDL"
-                    ]
-                    .fillna(0)
-                    .sum()
+                        idl_mask
+                    ].sum()
                 )
-            
-            
-            # ------------------------------------------------------------
-            # Attrition = Resign / Transfer (C)
-            # ------------------------------------------------------------
+
+            # =================================================
+            # 11. ATTRITION
+            #
+            # Resign / Transfer (C)
+            # =================================================
             if attrition_col is not None:
-            
+
                 attrition_values = (
                     pd.to_numeric(
                         raw.iloc[
@@ -1060,30 +1134,33 @@ def read_recruitment_weekly_reports(files):
                         ],
                         errors="coerce",
                     )
+                    .fillna(0)
                     .reset_index(drop=True)
                 )
-            
+
                 file_dl_attrition += int(
                     attrition_values[
-                        type_values == "DL"
-                    ]
-                    .fillna(0)
-                    .sum()
-                )
-            
-                file_idl_attrition += int(
-                    attrition_values[
-                        type_values == "IDL"
-                    ]
-                    .fillna(0)
-                    .sum()
+                        dl_mask
+                    ].sum()
                 )
 
+                file_idl_attrition += int(
+                    attrition_values[
+                        idl_mask
+                    ].sum()
+                )
+
+            # =================================================
+            # 12. ADD CURRENT WEEK HC
+            # =================================================
             if (
                 sheet_dl == 0
                 and sheet_idl == 0
             ):
-                continue
+                # Don't immediately skip because this sheet
+                # could theoretically contain hiring-status
+                # values, but normally this means no usable HC.
+                pass
 
             file_dl += sheet_dl
             file_idl += sheet_idl
@@ -1093,7 +1170,7 @@ def read_recruitment_weekly_reports(files):
             )
 
         # ====================================================
-        # 6. STORE ONE ROW PER UPLOADED FILE
+        # 13. VALIDATE FILE
         # ====================================================
         if (
             file_dl == 0
@@ -1101,82 +1178,120 @@ def read_recruitment_weekly_reports(files):
         ):
             raise ValueError(
                 f"{file_name}: "
-                "No usable current-week DL / IDL Total HC data found."
+                "No usable current-week DL / IDL Total HC data found. "
+                "Please check the 'just for report' column and "
+                "Total HC (A+B-C)(4) column."
             )
 
+        # ====================================================
+        # 14. STORE ONE ROW PER UPLOADED FILE
+        # ====================================================
         results.append(
             {
                 "Date": report_date,
-        
-                # Current week HC
+
+                # --------------------------------------------
+                # Current Week HC
+                # Total HC (A+B-C)(4)
+                # --------------------------------------------
                 "DL": file_dl,
                 "IDL": file_idl,
                 "Total HC": (
                     file_dl
                     + file_idl
                 ),
-        
-                # Last week HC = Total HC (A)
-                "DL Last Week HC": file_dl_last_week,
-                "IDL Last Week HC": file_idl_last_week,
-        
-                # Pending acceptance
+
+                # --------------------------------------------
+                # Last Week HC
+                # Total HC (A)
+                # --------------------------------------------
+                "DL Last Week HC": (
+                    file_dl_last_week
+                ),
+
+                "IDL Last Week HC": (
+                    file_idl_last_week
+                ),
+
+                # --------------------------------------------
+                # Pending Acceptance
+                # --------------------------------------------
                 "DL Pending Acceptance": (
                     file_dl_pending_acceptance
                 ),
+
                 "IDL Pending Acceptance": (
                     file_idl_pending_acceptance
                 ),
-        
-                # Awaiting onboarding
+
+                # --------------------------------------------
+                # Awaiting Onboarding
+                # --------------------------------------------
                 "DL Pending Onboard": (
                     file_dl_pending_onboard
                 ),
+
                 "IDL Pending Onboard": (
                     file_idl_pending_onboard
                 ),
-        
+
+                # --------------------------------------------
+                # Attrition
                 # Resign / Transfer (C)
-                "DL Attrition": file_dl_attrition,
-                "IDL Attrition": file_idl_attrition,
-        
+                # --------------------------------------------
+                "DL Attrition": (
+                    file_dl_attrition
+                ),
+
+                "IDL Attrition": (
+                    file_idl_attrition
+                ),
+
                 "Source File": file_name,
+
                 "Source Sheets": ", ".join(
                     used_sheets
                 ),
-        
-                "_upload_order": upload_order,
+
+                "_upload_order": (
+                    upload_order
+                ),
             }
         )
 
     # ========================================================
-    # 7. COMBINE ONLY THE FILES UPLOADED THIS TIME
+    # 15. EMPTY RESULT
     # ========================================================
     if not results:
+
         return pd.DataFrame(
             columns=[
                 "Date",
+
                 "DL",
                 "IDL",
                 "Total HC",
-    
+
                 "DL Last Week HC",
                 "IDL Last Week HC",
-    
+
                 "DL Pending Acceptance",
                 "IDL Pending Acceptance",
-    
+
                 "DL Pending Onboard",
                 "IDL Pending Onboard",
-    
+
                 "DL Attrition",
                 "IDL Attrition",
-    
+
                 "Source File",
                 "Source Sheets",
             ]
         )
 
+    # ========================================================
+    # 16. BUILD FINAL DATAFRAME
+    # ========================================================
     recruitment_df = pd.DataFrame(
         results
     )
@@ -1187,8 +1302,10 @@ def read_recruitment_weekly_reports(files):
         )
     )
 
-    # If the same date is uploaded twice,
-    # use the later uploaded file
+    # ========================================================
+    # 17. SAME DATE:
+    # Use latest uploaded file
+    # ========================================================
     recruitment_df = (
         recruitment_df
         .sort_values(
@@ -1198,16 +1315,22 @@ def read_recruitment_weekly_reports(files):
             ]
         )
         .drop_duplicates(
-            subset=["Date"],
+            subset=[
+                "Date"
+            ],
             keep="last",
         )
-        .sort_values("Date")
+        .sort_values(
+            "Date"
+        )
         .drop(
             columns=[
                 "_upload_order"
             ]
         )
-        .reset_index(drop=True)
+        .reset_index(
+            drop=True
+        )
     )
 
     return recruitment_df
