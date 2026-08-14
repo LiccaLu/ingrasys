@@ -720,7 +720,20 @@ def read_recruitment_weekly_reports(files):
 
         file_dl = 0
         file_idl = 0
-
+        
+        # Latest-week hiring analysis
+        file_dl_last_week = 0
+        file_idl_last_week = 0
+        
+        file_dl_pending_acceptance = 0
+        file_idl_pending_acceptance = 0
+        
+        file_dl_pending_onboard = 0
+        file_idl_pending_onboard = 0
+        
+        file_dl_attrition = 0
+        file_idl_attrition = 0
+        
         used_sheets = []
 
         for sheet_name in excel.sheet_names:
@@ -815,6 +828,56 @@ def read_recruitment_weekly_reports(files):
             if total_col is None:
                 continue
 
+            # ============================================================
+            # FIND EXTRA COLUMNS FOR LATEST-WEEK HIRING ANALYSIS
+            # ============================================================
+            last_week_hc_col = None
+            pending_acceptance_col = None
+            pending_onboard_col = None
+            attrition_col = None
+            
+            for row_index in range(search_rows):
+            
+                for col_index in range(raw.shape[1]):
+            
+                    value = raw.iat[
+                        row_index,
+                        col_index,
+                    ]
+            
+                    text = (
+                        str(value)
+                        .replace("\n", "")
+                        .replace(" ", "")
+                        .lower()
+                    )
+            
+                    # ----------------------------------------------------
+                    # Last week HC = Total HC (A)
+                    # Must NOT accidentally select A+B-C
+                    # ----------------------------------------------------
+                    if (
+                        "totalhc" in text
+                        and "(a)" in text
+                        and "a+b-c" not in text
+                    ):
+                        last_week_hc_col = col_index
+            
+                    # Pending acceptance
+                    elif "pendingacceptance" in text:
+                        pending_acceptance_col = col_index
+            
+                    # Awaiting Onboarding
+                    elif "awaitingonboarding" in text:
+                        pending_onboard_col = col_index
+            
+                    # Resign / Transfer (C)
+                    elif (
+                        "resign" in text
+                        or "transfer" in text
+                    ):
+                        attrition_col = col_index
+                        
             # =================================================
             # 5. READ CURRENT WEEK HC ROWS
             # =================================================
@@ -881,6 +944,141 @@ def read_recruitment_weekly_reports(files):
                 ].sum()
             )
 
+            # ============================================================
+            # EXTRA HIRING ANALYSIS VALUES
+            # ============================================================
+            
+            # ------------------------------------------------------------
+            # Last Week HC = Total HC (A)
+            # ------------------------------------------------------------
+            if last_week_hc_col is not None:
+            
+                last_week_values = (
+                    pd.to_numeric(
+                        raw.iloc[
+                            data_start:,
+                            last_week_hc_col,
+                        ],
+                        errors="coerce",
+                    )
+                    .reset_index(drop=True)
+                )
+            
+                file_dl_last_week += int(
+                    last_week_values[
+                        type_values == "DL"
+                    ]
+                    .fillna(0)
+                    .sum()
+                )
+            
+                file_idl_last_week += int(
+                    last_week_values[
+                        type_values == "IDL"
+                    ]
+                    .fillna(0)
+                    .sum()
+                )
+            
+            
+            # ------------------------------------------------------------
+            # Pending Acceptance
+            # ------------------------------------------------------------
+            if pending_acceptance_col is not None:
+            
+                pending_acceptance_values = (
+                    pd.to_numeric(
+                        raw.iloc[
+                            data_start:,
+                            pending_acceptance_col,
+                        ],
+                        errors="coerce",
+                    )
+                    .reset_index(drop=True)
+                )
+            
+                file_dl_pending_acceptance += int(
+                    pending_acceptance_values[
+                        type_values == "DL"
+                    ]
+                    .fillna(0)
+                    .sum()
+                )
+            
+                file_idl_pending_acceptance += int(
+                    pending_acceptance_values[
+                        type_values == "IDL"
+                    ]
+                    .fillna(0)
+                    .sum()
+                )
+            
+            
+            # ------------------------------------------------------------
+            # Awaiting Onboarding
+            # ------------------------------------------------------------
+            if pending_onboard_col is not None:
+            
+                pending_onboard_values = (
+                    pd.to_numeric(
+                        raw.iloc[
+                            data_start:,
+                            pending_onboard_col,
+                        ],
+                        errors="coerce",
+                    )
+                    .reset_index(drop=True)
+                )
+            
+                file_dl_pending_onboard += int(
+                    pending_onboard_values[
+                        type_values == "DL"
+                    ]
+                    .fillna(0)
+                    .sum()
+                )
+            
+                file_idl_pending_onboard += int(
+                    pending_onboard_values[
+                        type_values == "IDL"
+                    ]
+                    .fillna(0)
+                    .sum()
+                )
+            
+            
+            # ------------------------------------------------------------
+            # Attrition = Resign / Transfer (C)
+            # ------------------------------------------------------------
+            if attrition_col is not None:
+            
+                attrition_values = (
+                    pd.to_numeric(
+                        raw.iloc[
+                            data_start:,
+                            attrition_col,
+                        ],
+                        errors="coerce",
+                    )
+                    .reset_index(drop=True)
+                )
+            
+                file_dl_attrition += int(
+                    attrition_values[
+                        type_values == "DL"
+                    ]
+                    .fillna(0)
+                    .sum()
+                )
+            
+                file_idl_attrition += int(
+                    attrition_values[
+                        type_values == "IDL"
+                    ]
+                    .fillna(0)
+                    .sum()
+                )
+
             if (
                 sheet_dl == 0
                 and sheet_idl == 0
@@ -909,16 +1107,44 @@ def read_recruitment_weekly_reports(files):
         results.append(
             {
                 "Date": report_date,
+        
+                # Current week HC
                 "DL": file_dl,
                 "IDL": file_idl,
                 "Total HC": (
                     file_dl
                     + file_idl
                 ),
+        
+                # Last week HC = Total HC (A)
+                "DL Last Week HC": file_dl_last_week,
+                "IDL Last Week HC": file_idl_last_week,
+        
+                # Pending acceptance
+                "DL Pending Acceptance": (
+                    file_dl_pending_acceptance
+                ),
+                "IDL Pending Acceptance": (
+                    file_idl_pending_acceptance
+                ),
+        
+                # Awaiting onboarding
+                "DL Pending Onboard": (
+                    file_dl_pending_onboard
+                ),
+                "IDL Pending Onboard": (
+                    file_idl_pending_onboard
+                ),
+        
+                # Resign / Transfer (C)
+                "DL Attrition": file_dl_attrition,
+                "IDL Attrition": file_idl_attrition,
+        
                 "Source File": file_name,
                 "Source Sheets": ", ".join(
                     used_sheets
                 ),
+        
                 "_upload_order": upload_order,
             }
         )
@@ -927,16 +1153,29 @@ def read_recruitment_weekly_reports(files):
     # 7. COMBINE ONLY THE FILES UPLOADED THIS TIME
     # ========================================================
     if not results:
-        return pd.DataFrame(
-            columns=[
-                "Date",
-                "DL",
-                "IDL",
-                "Total HC",
-                "Source File",
-                "Source Sheets",
-            ]
-        )
+    return pd.DataFrame(
+        columns=[
+            "Date",
+            "DL",
+            "IDL",
+            "Total HC",
+
+            "DL Last Week HC",
+            "IDL Last Week HC",
+
+            "DL Pending Acceptance",
+            "IDL Pending Acceptance",
+
+            "DL Pending Onboard",
+            "IDL Pending Onboard",
+
+            "DL Attrition",
+            "IDL Attrition",
+
+            "Source File",
+            "Source Sheets",
+        ]
+    )
 
     recruitment_df = pd.DataFrame(
         results
