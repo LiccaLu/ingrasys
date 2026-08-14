@@ -3378,7 +3378,7 @@ The accompanying table includes:
                                 f"{x:.1f}%"
                                 for x in ot_summary["OT Ratio"]
                             ],
-                            textposition="top right",
+                            textposition="middle right",
                             textfont=dict(
                                 size=11,
                                 color="#ED6A2C",
