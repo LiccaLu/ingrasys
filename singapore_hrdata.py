@@ -1827,157 +1827,140 @@ if page == "01  Upload":
             "recruitment",
             None,
         )
-                
-        # ========================================================
-        # OT REPORT
-        # ========================================================
-        st.markdown(
-            '<div class="section-title">'
-            'OT REPORT'
-            '</div>',
-            unsafe_allow_html=True,
+        
+    # ========================================================
+    # OT REPORT
+    # ========================================================
+    st.markdown(
+        '<div class="section-title">'
+        'OT REPORT'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    ot_file = st.file_uploader(
+        "OT Report",
+        type=["xlsx", "xls"],
+        key="ot_upload",
+        label_visibility="collapsed",
+    )
+
+    if ot_file is not None:
+
+        current_ot_signature = (
+            ot_file.name,
+            ot_file.size,
         )
-    
-        ot_file = st.file_uploader(
-            "OT Report",
-            type=["xlsx", "xls"],
-            key="ot_upload",
-            label_visibility="collapsed",
-        )
-    
-        # --------------------------------------------------------
-        # Automatically process OT report
-        # --------------------------------------------------------
-        if ot_file is not None:
-    
-            current_ot_signature = (
-                ot_file.name,
-                ot_file.size,
+
+        previous_ot_signature = (
+            st.session_state.get(
+                "ot_file_signature"
             )
-    
-            previous_ot_signature = (
-                st.session_state.get(
-                    "ot_file_signature"
+        )
+
+        if current_ot_signature != previous_ot_signature:
+
+            try:
+                ot_excel = pd.ExcelFile(
+                    ot_file
                 )
-            )
-    
-            if (
-                current_ot_signature
-                != previous_ot_signature
-            ):
-    
-                try:
-    
-                    # Try Data sheet first
-                    ot_excel = pd.ExcelFile(
-                        ot_file
-                    )
-    
-                    if "Data" in ot_excel.sheet_names:
-                        ot_sheet = "Data"
-                    else:
-                        ot_sheet = ot_excel.sheet_names[0]
-    
-                    ot_df = pd.read_excel(
-                        ot_file,
-                        sheet_name=ot_sheet,
-                    )
-    
-                    ot_df.columns = (
-                        ot_df.columns
-                        .astype(str)
-                        .str.strip()
-                    )
-    
-                    required_ot_columns = [
-                        "Dept",
-                        "Applied O/T Hrs",
-                    ]
-    
-                    missing_ot_columns = [
-                        column
-                        for column
-                        in required_ot_columns
-                        if column
-                        not in ot_df.columns
-                    ]
-    
-                    if missing_ot_columns:
-                        raise ValueError(
-                            "OT Report is missing column(s): "
-                            + ", ".join(
-                                missing_ot_columns
-                            )
+
+                if "Data" in ot_excel.sheet_names:
+                    ot_sheet = "Data"
+                else:
+                    ot_sheet = ot_excel.sheet_names[0]
+
+                ot_df = pd.read_excel(
+                    ot_file,
+                    sheet_name=ot_sheet,
+                )
+
+                ot_df.columns = (
+                    ot_df.columns
+                    .astype(str)
+                    .str.strip()
+                )
+
+                required_ot_columns = [
+                    "Dept",
+                    "Applied O/T Hrs",
+                ]
+
+                missing_ot_columns = [
+                    column
+                    for column in required_ot_columns
+                    if column not in ot_df.columns
+                ]
+
+                if missing_ot_columns:
+                    raise ValueError(
+                        "OT Report is missing column(s): "
+                        + ", ".join(
+                            missing_ot_columns
                         )
-    
-                    ot_df["Dept"] = (
-                        ot_df["Dept"]
-                        .fillna("")
-                        .astype(str)
-                        .str.strip()
                     )
-    
-                    ot_df["Applied O/T Hrs"] = (
-                        pd.to_numeric(
-                            ot_df[
-                                "Applied O/T Hrs"
-                            ],
-                            errors="coerce",
-                        )
-                        .fillna(0)
+
+                ot_df["Dept"] = (
+                    ot_df["Dept"]
+                    .fillna("")
+                    .astype(str)
+                    .str.strip()
+                )
+
+                ot_df["Applied O/T Hrs"] = (
+                    pd.to_numeric(
+                        ot_df["Applied O/T Hrs"],
+                        errors="coerce",
                     )
-    
-                    ot_df = ot_df[
-                        ot_df["Dept"] != ""
-                    ].copy()
-    
-                    st.session_state[
-                        "ot_df"
-                    ] = ot_df
-    
-                    st.session_state[
-                        "ot_file_signature"
-                    ] = current_ot_signature
-    
-                    st.session_state.file_names[
-                        "ot"
-                    ] = ot_file.name
-    
-                    st.success(
-                        "OT Report loaded."
-                    )
-    
-                except Exception as exc:
-    
-                    st.session_state[
-                        "ot_df"
-                    ] = None
-    
-                    st.session_state.pop(
-                        "ot_file_signature",
-                        None,
-                    )
-    
-                    st.error(
-                        "Unable to read OT Report: "
-                        f"{exc}"
-                    )
-    
-        else:
-    
-            st.session_state[
-                "ot_df"
-            ] = None
-    
-            st.session_state.pop(
-                "ot_file_signature",
-                None,
-            )
-    
-            st.session_state.file_names.pop(
-                "ot",
-                None,
-            )
+                    .fillna(0)
+                )
+
+                ot_df = ot_df[
+                    ot_df["Dept"] != ""
+                ].copy()
+
+                st.session_state["ot_df"] = ot_df
+
+                st.session_state[
+                    "ot_file_signature"
+                ] = current_ot_signature
+
+                st.session_state.file_names[
+                    "ot"
+                ] = ot_file.name
+
+                st.success(
+                    "OT Report loaded."
+                )
+
+            except Exception as exc:
+
+                st.session_state["ot_df"] = None
+
+                st.session_state.pop(
+                    "ot_file_signature",
+                    None,
+                )
+
+                st.error(
+                    "Unable to read OT Report: "
+                    f"{exc}"
+                )
+
+    else:
+        st.session_state["ot_df"] = None
+
+        st.session_state.pop(
+            "ot_file_signature",
+            None,
+        )
+
+        st.session_state.file_names.pop(
+            "ot",
+            None,
+        )
+   
+            
         
     # Process button directly below uploaders
     process_clicked = st.button(
