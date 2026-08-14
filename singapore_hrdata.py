@@ -1186,9 +1186,14 @@ def read_recruitment_weekly_reports(files):
 
             # -------------------------------------------------
             # Attrition = Resign / Transfer (C)
+            #
+            # Classification:
+            #   just for report = numeric -> DL
+            #   just for report = IDL     -> IDL
+            #   NOT INCLUDE               -> excluded
             # -------------------------------------------------
             if attrition_col is not None:
-
+            
                 attrition_values = (
                     pd.to_numeric(
                         raw.iloc[
@@ -1200,22 +1205,97 @@ def read_recruitment_weekly_reports(files):
                     .fillna(0)
                     .reset_index(drop=True)
                 )
-
-                plant_dl_attrition += int(
+            
+                # Make sure all three Series have identical length
+                common_length = min(
+                    len(attrition_values),
+                    len(report_group),
+                    len(plant_dl_mask),
+                    len(plant_idl_mask),
+                )
+            
+                attrition_values = (
+                    attrition_values
+                    .iloc[:common_length]
+                    .reset_index(drop=True)
+                )
+            
+                attrition_report_group = (
+                    report_group
+                    .iloc[:common_length]
+                    .reset_index(drop=True)
+                )
+            
+                # ---------------------------------------------
+                # IDL:
+                # just for report explicitly says IDL
+                # ---------------------------------------------
+                attrition_idl_mask = (
+                    attrition_report_group
+                    .eq("IDL")
+                )
+            
+                # ---------------------------------------------
+                # DL:
+                # just for report is a number
+                # ---------------------------------------------
+                attrition_numeric_group = (
+                    pd.to_numeric(
+                        attrition_report_group,
+                        errors="coerce",
+                    )
+                )
+            
+                attrition_dl_mask = (
+                    attrition_numeric_group
+                    .notna()
+                )
+            
+                # ---------------------------------------------
+                # NEVER include NOT INCLUDE
+                # ---------------------------------------------
+                attrition_exclude_mask = (
+                    attrition_report_group
+                    .str.replace(
+                        r"\s+",
+                        " ",
+                        regex=True,
+                    )
+                    .eq("NOT INCLUDE")
+                )
+            
+                attrition_dl_mask = (
+                    attrition_dl_mask
+                    & ~attrition_exclude_mask
+                )
+            
+                attrition_idl_mask = (
+                    attrition_idl_mask
+                    & ~attrition_exclude_mask
+                )
+            
+                # ---------------------------------------------
+                # SUM
+                # ---------------------------------------------
+                sheet_dl_attrition = int(
                     attrition_values[
-                        plant_dl_mask
+                        attrition_dl_mask
                     ].sum()
                 )
-
-                plant_idl_attrition += int(
+            
+                sheet_idl_attrition = int(
                     attrition_values[
-                        plant_idl_mask
+                        attrition_idl_mask
                     ].sum()
                 )
-
-            plant_used_sheets.append(
-                sheet_name
-            )
+            
+                plant_dl_attrition += (
+                    sheet_dl_attrition
+                )
+            
+                plant_idl_attrition += (
+                    sheet_idl_attrition
+                )
 
         # ====================================================
         # 8. VALIDATE WEEKLY TREND DATA
