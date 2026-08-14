@@ -3374,18 +3374,28 @@ The accompanying table includes:
                             mode="lines+markers+text",
                             name="OT Ratio (%)",
                             yaxis="y2",
+                    
                             text=[f"{x:.1f}%" for x in ot_summary["OT Ratio (%)"]],
-                            textposition="top center",   # or "top right"
-                            line=dict(color="#ED6A2C", width=4),
-                            marker=dict(size=10),
+                            textposition="top center",
                             textfont=dict(
-                                size=14,
+                                size=11,          # smaller so labels don't overlap
                                 color="#ED6A2C",
                             ),
+                    
+                            line=dict(
+                                color="#ED6A2C",
+                                width=4,
+                            ),
+                    
+                            marker=dict(
+                                size=10,
+                            ),
+                    
+                            cliponaxis=False,
+                    
                             hovertemplate=(
                                 "<b>%{x}</b><br>"
-                                "Share of Total OT: "
-                                "%{y:.2f}%"
+                                "Share of Total OT: %{y:.1f}%"
                                 "<extra></extra>"
                             ),
                         ),
