@@ -6,6 +6,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 # ============================================================
 # PAGE CONFIG
@@ -328,6 +329,9 @@ defaults = {
 
     # Recruitment weekly report
     "recruitment_hc_df": None,
+
+    # OT report
+    "ot_df": None,
 
     "file_names": {},
     "history": [],
@@ -1824,7 +1828,157 @@ if page == "01  Upload":
             None,
         )
                 
+        # ========================================================
+        # OT REPORT
+        # ========================================================
+        st.markdown(
+            '<div class="section-title">'
+            'OT REPORT'
+            '</div>',
+            unsafe_allow_html=True,
+        )
     
+        ot_file = st.file_uploader(
+            "OT Report",
+            type=["xlsx", "xls"],
+            key="ot_upload",
+            label_visibility="collapsed",
+        )
+    
+        # --------------------------------------------------------
+        # Automatically process OT report
+        # --------------------------------------------------------
+        if ot_file is not None:
+    
+            current_ot_signature = (
+                ot_file.name,
+                ot_file.size,
+            )
+    
+            previous_ot_signature = (
+                st.session_state.get(
+                    "ot_file_signature"
+                )
+            )
+    
+            if (
+                current_ot_signature
+                != previous_ot_signature
+            ):
+    
+                try:
+    
+                    # Try Data sheet first
+                    ot_excel = pd.ExcelFile(
+                        ot_file
+                    )
+    
+                    if "Data" in ot_excel.sheet_names:
+                        ot_sheet = "Data"
+                    else:
+                        ot_sheet = ot_excel.sheet_names[0]
+    
+                    ot_df = pd.read_excel(
+                        ot_file,
+                        sheet_name=ot_sheet,
+                    )
+    
+                    ot_df.columns = (
+                        ot_df.columns
+                        .astype(str)
+                        .str.strip()
+                    )
+    
+                    required_ot_columns = [
+                        "Dept",
+                        "Applied O/T Hrs",
+                    ]
+    
+                    missing_ot_columns = [
+                        column
+                        for column
+                        in required_ot_columns
+                        if column
+                        not in ot_df.columns
+                    ]
+    
+                    if missing_ot_columns:
+                        raise ValueError(
+                            "OT Report is missing column(s): "
+                            + ", ".join(
+                                missing_ot_columns
+                            )
+                        )
+    
+                    ot_df["Dept"] = (
+                        ot_df["Dept"]
+                        .fillna("")
+                        .astype(str)
+                        .str.strip()
+                    )
+    
+                    ot_df["Applied O/T Hrs"] = (
+                        pd.to_numeric(
+                            ot_df[
+                                "Applied O/T Hrs"
+                            ],
+                            errors="coerce",
+                        )
+                        .fillna(0)
+                    )
+    
+                    ot_df = ot_df[
+                        ot_df["Dept"] != ""
+                    ].copy()
+    
+                    st.session_state[
+                        "ot_df"
+                    ] = ot_df
+    
+                    st.session_state[
+                        "ot_file_signature"
+                    ] = current_ot_signature
+    
+                    st.session_state.file_names[
+                        "ot"
+                    ] = ot_file.name
+    
+                    st.success(
+                        "OT Report loaded."
+                    )
+    
+                except Exception as exc:
+    
+                    st.session_state[
+                        "ot_df"
+                    ] = None
+    
+                    st.session_state.pop(
+                        "ot_file_signature",
+                        None,
+                    )
+    
+                    st.error(
+                        "Unable to read OT Report: "
+                        f"{exc}"
+                    )
+    
+        else:
+    
+            st.session_state[
+                "ot_df"
+            ] = None
+    
+            st.session_state.pop(
+                "ot_file_signature",
+                None,
+            )
+    
+            st.session_state.file_names.pop(
+                "ot",
+                None,
+            )
+        
     # Process button directly below uploaders
     process_clicked = st.button(
         "Process Files",
@@ -3076,6 +3230,331 @@ The accompanying table includes:
                             "displayModeBar": True,
                             "displaylogo": False,
                         },
+                    )
+
+                # ====================================================
+                # OT BY DEPARTMENT
+                # ====================================================
+                ot_df = st.session_state.get(
+                    "ot_df"
+                )
+
+                if (
+                    isinstance(
+                        ot_df,
+                        pd.DataFrame,
+                    )
+                    and not ot_df.empty
+                ):
+
+                    st.markdown(
+                        "<br>",
+                        unsafe_allow_html=True,
+                    )
+
+                    st.markdown(
+                        '<div class="dashboard-section-title">'
+                        'OT by Department'
+                        '</div>',
+                        unsafe_allow_html=True,
+                    )
+
+                    st.markdown(
+                        '<div class="dashboard-section-note">'
+                        'Department overtime hours and each '
+                        'department’s share of total overtime.'
+                        '</div>',
+                        unsafe_allow_html=True,
+                    )
+
+                    # ---------------------------------------------
+                    # Department summary
+                    # ---------------------------------------------
+                    ot_summary = (
+                        ot_df
+                        .groupby(
+                            "Dept",
+                            as_index=False,
+                        )[
+                            "Applied O/T Hrs"
+                        ]
+                        .sum()
+                        .rename(
+                            columns={
+                                "Applied O/T Hrs":
+                                "OT Hours",
+                            }
+                        )
+                    )
+
+                    # Remove departments with no OT
+                    ot_summary = (
+                        ot_summary[
+                            ot_summary[
+                                "OT Hours"
+                            ] > 0
+                        ]
+                        .copy()
+                    )
+
+                    total_ot_hours = (
+                        ot_summary[
+                            "OT Hours"
+                        ].sum()
+                    )
+
+                    # ---------------------------------------------
+                    # Ratio:
+                    # Department OT / Total OT
+                    # ---------------------------------------------
+                    if total_ot_hours > 0:
+
+                        ot_summary[
+                            "OT Ratio"
+                        ] = (
+                            ot_summary[
+                                "OT Hours"
+                            ]
+                            / total_ot_hours
+                            * 100
+                        )
+
+                    else:
+
+                        ot_summary[
+                            "OT Ratio"
+                        ] = 0.0
+
+                    ot_summary = (
+                        ot_summary
+                        .sort_values(
+                            "OT Hours",
+                            ascending=False,
+                        )
+                        .reset_index(
+                            drop=True
+                        )
+                    )
+
+                    # ---------------------------------------------
+                    # Build dual-axis graph
+                    # ---------------------------------------------
+                    fig_ot = make_subplots(
+                        specs=[
+                            [
+                                {
+                                    "secondary_y": True
+                                }
+                            ]
+                        ]
+                    )
+
+                    # BAR — OT hours
+                    fig_ot.add_trace(
+                        go.Bar(
+                            x=ot_summary[
+                                "Dept"
+                            ],
+                            y=ot_summary[
+                                "OT Hours"
+                            ],
+                            name="OT Hours",
+                            marker_color="#1F6885",
+                            text=[
+                                f"{value:,.1f}"
+                                for value
+                                in ot_summary[
+                                    "OT Hours"
+                                ]
+                            ],
+                            textposition="outside",
+                            textfont=dict(
+                                size=14,
+                                color="#243247",
+                            ),
+                            cliponaxis=False,
+                            hovertemplate=(
+                                "<b>%{x}</b><br>"
+                                "OT Hours: "
+                                "%{y:,.2f}"
+                                "<extra></extra>"
+                            ),
+                        ),
+                        secondary_y=False,
+                    )
+
+                    # LINE — Department share of total OT
+                    fig_ot.add_trace(
+                        go.Scatter(
+                            x=ot_summary[
+                                "Dept"
+                            ],
+                            y=ot_summary[
+                                "OT Ratio"
+                            ],
+                            name="OT Ratio (%)",
+                            mode=(
+                                "lines+markers+text"
+                            ),
+                            line=dict(
+                                color="#ED6A2C",
+                                width=4,
+                            ),
+                            marker=dict(
+                                color="#ED6A2C",
+                                size=10,
+                            ),
+                            text=[
+                                f"{value:.1f}%"
+                                for value
+                                in ot_summary[
+                                    "OT Ratio"
+                                ]
+                            ],
+                            textposition=(
+                                "top center"
+                            ),
+                            textfont=dict(
+                                size=14,
+                                color="#ED6A2C",
+                            ),
+                            hovertemplate=(
+                                "<b>%{x}</b><br>"
+                                "Share of Total OT: "
+                                "%{y:.2f}%"
+                                "<extra></extra>"
+                            ),
+                        ),
+                        secondary_y=True,
+                    )
+
+                    maximum_ot = max(
+                        ot_summary[
+                            "OT Hours"
+                        ].max(),
+                        1,
+                    )
+
+                    maximum_ratio = max(
+                        ot_summary[
+                            "OT Ratio"
+                        ].max(),
+                        1,
+                    )
+
+                    fig_ot.update_layout(
+                        title=dict(
+                            text=(
+                                "OT Hours (Bars) "
+                                "vs Share of Total OT (Line)"
+                            ),
+                            x=0.5,
+                            xanchor="center",
+                            font=dict(
+                                size=20,
+                                color="#243247",
+                            ),
+                        ),
+                        height=500,
+                        paper_bgcolor="#FFFFFF",
+                        plot_bgcolor="#FFFFFF",
+                        bargap=0.55,
+                        hovermode="x unified",
+                        margin=dict(
+                            l=70,
+                            r=70,
+                            t=85,
+                            b=95,
+                        ),
+                        legend=dict(
+                            orientation="h",
+                            yanchor="top",
+                            y=-0.16,
+                            xanchor="center",
+                            x=0.5,
+                            title_text="",
+                        ),
+                        xaxis=dict(
+                            title="",
+                            showgrid=False,
+                            tickfont=dict(
+                                size=13,
+                            ),
+                            automargin=True,
+                        ),
+                    )
+
+                    fig_ot.update_yaxes(
+                        title_text="OT Hours",
+                        range=[
+                            0,
+                            maximum_ot * 1.20,
+                        ],
+                        gridcolor="#E5E7EB",
+                        zeroline=False,
+                        secondary_y=False,
+                    )
+
+                    fig_ot.update_yaxes(
+                        title_text=(
+                            "Share of Total OT (%)"
+                        ),
+                        range=[
+                            0,
+                            maximum_ratio * 1.20,
+                        ],
+                        ticksuffix="%",
+                        showgrid=False,
+                        zeroline=False,
+                        secondary_y=True,
+                    )
+
+                    st.plotly_chart(
+                        fig_ot,
+                        use_container_width=True,
+                        config={
+                            "displayModeBar": True,
+                            "displaylogo": False,
+                        },
+                    )
+
+                    # ---------------------------------------------
+                    # Table
+                    # ---------------------------------------------
+                    ot_table = (
+                        ot_summary.copy()
+                    )
+
+                    ot_table[
+                        "OT Hours"
+                    ] = (
+                        ot_table[
+                            "OT Hours"
+                        ]
+                        .round(2)
+                    )
+
+                    ot_table[
+                        "OT Ratio (%)"
+                    ] = (
+                        ot_table[
+                            "OT Ratio"
+                        ]
+                        .round(2)
+                    )
+
+                    ot_table = ot_table[
+                        [
+                            "Dept",
+                            "OT Hours",
+                            "OT Ratio (%)",
+                        ]
+                    ]
+
+                    st.dataframe(
+                        ot_table,
+                        use_container_width=True,
+                        hide_index=True,
                     )
     # ============================================================
     # DAILY ABSENCE RATE — WITH AND WITHOUT APPROVED LEAVE
