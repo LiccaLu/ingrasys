@@ -3369,24 +3369,15 @@ The accompanying table includes:
                     # LINE — Department share of total OT
                     fig_ot.add_trace(
                         go.Scatter(
-                            x=ot_summary[
-                                "Dept"
-                            ],
-                            y=ot_summary[
-                                "OT Ratio"
-                            ],
+                            x=ot_summary["Dept"],
+                            y=ot_summary["OT Ratio (%)"],
+                            mode="lines+markers+text",
                             name="OT Ratio (%)",
-                            mode=(
-                                "lines+markers+text"
-                            ),
-                            line=dict(
-                                color="#ED6A2C",
-                                width=4,
-                            ),
-                            marker=dict(
-                                color="#ED6A2C",
-                                size=10,
-                            ),
+                            yaxis="y2",
+                            text=[f"{x:.1f}%" for x in ot_summary["OT Ratio (%)"]],
+                            textposition="top center",   # or "top right"
+                            line=dict(color="#ED6A2C", width=4),
+                            marker=dict(size=10),
                             text=[
                                 f"{value:.1f}%"
                                 for value
