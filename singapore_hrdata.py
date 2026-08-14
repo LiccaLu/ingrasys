@@ -2737,64 +2737,37 @@ The accompanying table includes:
                 rate_col1, rate_col2 = st.columns(2)
     
                 with rate_col1:
-    
+                
                     dl_rate_color = (
                         "#32A852"
                         if dl_hiring_rate >= 0
                         else "#ED6A2C"
                     )
-    
+                
                     st.markdown(
-                        f"""
-                        <div class="metric-card">
-                            <div class="metric-label">
-                                DL HIRING RATE
-                            </div>
-    
-                            <div
-                                class="metric-value"
-                                style="color:{dl_rate_color};"
-                            >
-                                {dl_hiring_rate:+.1f}%
-                            </div>
-    
-                            <div class="metric-note">
-                                {dl_last_week:,} last week /
-                                {dl_this_week:,} this week
-                            </div>
-                        </div>
-                        """,
+                        f"""<div class="metric-card">
+                <div class="metric-label">DL HIRING RATE</div>
+                <div class="metric-value" style="color:{dl_rate_color};">{dl_hiring_rate:+.1f}%</div>
+                <div class="metric-note">{dl_last_week:,} last week / {dl_this_week:,} this week</div>
+                </div>""",
                         unsafe_allow_html=True,
                     )
-    
+                
+                
                 with rate_col2:
-    
+                
                     idl_rate_color = (
                         "#32A852"
                         if idl_hiring_rate >= 0
                         else "#ED6A2C"
                     )
-    
+                
                     st.markdown(
-                        f"""
-                        <div class="metric-card">
-                            <div class="metric-label">
-                                IDL HIRING RATE
-                            </div>
-    
-                            <div
-                                class="metric-value"
-                                style="color:{idl_rate_color};"
-                            >
-                                {idl_hiring_rate:+.1f}%
-                            </div>
-    
-                            <div class="metric-note">
-                                {idl_last_week:,} last week /
-                                {idl_this_week:,} this week
-                            </div>
-                        </div>
-                        """,
+                        f"""<div class="metric-card">
+                <div class="metric-label">IDL HIRING RATE</div>
+                <div class="metric-value" style="color:{idl_rate_color};">{idl_hiring_rate:+.1f}%</div>
+                <div class="metric-note">{idl_last_week:,} last week / {idl_this_week:,} this week</div>
+                </div>""",
                         unsafe_allow_html=True,
                     )
     
