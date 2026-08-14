@@ -3370,15 +3370,17 @@ The accompanying table includes:
                     fig_ot.add_trace(
                         go.Scatter(
                             x=ot_summary["Dept"],
-                            y=ot_summary["OT Ratio (%)"],
+                            y=ot_summary["OT Ratio"],
                             mode="lines+markers+text",
                             name="OT Ratio (%)",
-                            yaxis="y2",
                     
-                            text=[f"{x:.1f}%" for x in ot_summary["OT Ratio (%)"]],
+                            text=[
+                                f"{x:.1f}%"
+                                for x in ot_summary["OT Ratio"]
+                            ],
                             textposition="top center",
                             textfont=dict(
-                                size=11,          # smaller so labels don't overlap
+                                size=11,
                                 color="#ED6A2C",
                             ),
                     
@@ -3389,6 +3391,7 @@ The accompanying table includes:
                     
                             marker=dict(
                                 size=10,
+                                color="#ED6A2C",
                             ),
                     
                             cliponaxis=False,
