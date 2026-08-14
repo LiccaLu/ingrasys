@@ -2028,6 +2028,574 @@ The accompanying table includes:
                 hide_index=True,
             )
 
+        # ============================================================
+        # LATEST WEEK HIRING OVERVIEW
+        # ============================================================
+        recruitment_hc_df = st.session_state.get(
+            "recruitment_hc_df"
+        )
+    
+        if (
+            isinstance(
+                recruitment_hc_df,
+                pd.DataFrame,
+            )
+            and not recruitment_hc_df.empty
+        ):
+    
+            # --------------------------------------------------------
+            # Always use ONLY the newest uploaded report
+            # Example:
+            # 07/06 + 07/13 + 07/20 + 07/27
+            # -> this section analyzes only 07/27
+            # --------------------------------------------------------
+            latest_recruitment = (
+                recruitment_hc_df
+                .sort_values("Date")
+                .iloc[-1]
+            )
+    
+            latest_recruitment_date = pd.to_datetime(
+                latest_recruitment["Date"],
+                errors="coerce",
+            )
+    
+            if pd.notna(latest_recruitment_date):
+                latest_recruitment_date_text = (
+                    latest_recruitment_date.strftime(
+                        "%Y-%m-%d"
+                    )
+                )
+            else:
+                latest_recruitment_date_text = (
+                    "Latest report"
+                )
+    
+            latest_source_file = str(
+                latest_recruitment.get(
+                    "Source File",
+                    "",
+                )
+            )
+    
+            # ========================================================
+            # VALUES
+            # ========================================================
+    
+            # Last week = Total HC (A)
+            dl_last_week = int(
+                latest_recruitment.get(
+                    "DL Last Week HC",
+                    0,
+                )
+                or 0
+            )
+    
+            idl_last_week = int(
+                latest_recruitment.get(
+                    "IDL Last Week HC",
+                    0,
+                )
+                or 0
+            )
+    
+            # This week = Total HC (A+B-C)(4)
+            dl_this_week = int(
+                latest_recruitment.get(
+                    "DL",
+                    0,
+                )
+                or 0
+            )
+    
+            idl_this_week = int(
+                latest_recruitment.get(
+                    "IDL",
+                    0,
+                )
+                or 0
+            )
+    
+            # Pending Acceptance
+            dl_pending_acceptance = int(
+                latest_recruitment.get(
+                    "DL Pending Acceptance",
+                    0,
+                )
+                or 0
+            )
+    
+            idl_pending_acceptance = int(
+                latest_recruitment.get(
+                    "IDL Pending Acceptance",
+                    0,
+                )
+                or 0
+            )
+    
+            # Awaiting Onboarding
+            dl_pending_onboard = int(
+                latest_recruitment.get(
+                    "DL Pending Onboard",
+                    0,
+                )
+                or 0
+            )
+    
+            idl_pending_onboard = int(
+                latest_recruitment.get(
+                    "IDL Pending Onboard",
+                    0,
+                )
+                or 0
+            )
+    
+            # Resign / Transfer (C)
+            dl_attrition = int(
+                latest_recruitment.get(
+                    "DL Attrition",
+                    0,
+                )
+                or 0
+            )
+    
+            idl_attrition = int(
+                latest_recruitment.get(
+                    "IDL Attrition",
+                    0,
+                )
+                or 0
+            )
+    
+            # ========================================================
+            # HIRING RATE
+            #
+            # (This week HC - Last week HC)
+            # -------------------------------- × 100
+            #          Last week HC
+            # ========================================================
+            dl_hiring_rate = (
+                (
+                    dl_this_week
+                    - dl_last_week
+                )
+                / dl_last_week
+                * 100
+                if dl_last_week > 0
+                else 0
+            )
+    
+            idl_hiring_rate = (
+                (
+                    idl_this_week
+                    - idl_last_week
+                )
+                / idl_last_week
+                * 100
+                if idl_last_week > 0
+                else 0
+            )
+    
+            # ========================================================
+            # CONTAINER
+            # ========================================================
+            with st.container(border=True):
+    
+                st.markdown(
+                    '<div class="dashboard-section-title">'
+                    'Latest Week Hiring Overview'
+                    '</div>',
+                    unsafe_allow_html=True,
+                )
+    
+                st.markdown(
+                    (
+                        '<div class="dashboard-section-note">'
+                        'Latest uploaded Recruitment Weekly Report: '
+                        f'<b>{latest_recruitment_date_text}</b>'
+                        + (
+                            f' — {latest_source_file}'
+                            if latest_source_file
+                            else ""
+                        )
+                        + '</div>'
+                    ),
+                    unsafe_allow_html=True,
+                )
+    
+                # ====================================================
+                # HIRING RATE CARDS
+                # ====================================================
+                rate_col1, rate_col2 = st.columns(2)
+    
+                with rate_col1:
+    
+                    dl_rate_color = (
+                        "#32A852"
+                        if dl_hiring_rate >= 0
+                        else "#ED6A2C"
+                    )
+    
+                    st.markdown(
+                        f"""
+                        <div class="metric-card">
+                            <div class="metric-label">
+                                DL HIRING RATE
+                            </div>
+    
+                            <div
+                                class="metric-value"
+                                style="color:{dl_rate_color};"
+                            >
+                                {dl_hiring_rate:+.1f}%
+                            </div>
+    
+                            <div class="metric-note">
+                                {dl_last_week:,} last week /
+                                {dl_this_week:,} this week
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+    
+                with rate_col2:
+    
+                    idl_rate_color = (
+                        "#32A852"
+                        if idl_hiring_rate >= 0
+                        else "#ED6A2C"
+                    )
+    
+                    st.markdown(
+                        f"""
+                        <div class="metric-card">
+                            <div class="metric-label">
+                                IDL HIRING RATE
+                            </div>
+    
+                            <div
+                                class="metric-value"
+                                style="color:{idl_rate_color};"
+                            >
+                                {idl_hiring_rate:+.1f}%
+                            </div>
+    
+                            <div class="metric-note">
+                                {idl_last_week:,} last week /
+                                {idl_this_week:,} this week
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+    
+                st.markdown("<br>", unsafe_allow_html=True)
+    
+                # ====================================================
+                # GRAPHS
+                # ====================================================
+                graph_col1, graph_col2, graph_col3 = (
+                    st.columns(3)
+                )
+    
+                # ----------------------------------------------------
+                # DL HIRING FUNNEL
+                # ----------------------------------------------------
+                with graph_col1:
+    
+                    dl_funnel_df = pd.DataFrame(
+                        {
+                            "Stage": [
+                                "Last Week HC",
+                                "This Week HC",
+                                "Pending\nOnboard",
+                                "Pending\nAcceptance",
+                                "Attrition",
+                            ],
+                            "Count": [
+                                dl_last_week,
+                                dl_this_week,
+                                dl_pending_onboard,
+                                dl_pending_acceptance,
+                                dl_attrition,
+                            ],
+                        }
+                    )
+    
+                    fig_dl_funnel = px.bar(
+                        dl_funnel_df,
+                        x="Stage",
+                        y="Count",
+                        text="Count",
+                    )
+    
+                    fig_dl_funnel.update_traces(
+                        marker_color="#1F6885",
+                        textposition="outside",
+                        textfont=dict(
+                            size=14,
+                            color="#243247",
+                        ),
+                        cliponaxis=False,
+                        width=0.48,
+                        hovertemplate=(
+                            "<b>%{x}</b><br>"
+                            "Headcount: %{y:,}"
+                            "<extra></extra>"
+                        ),
+                    )
+    
+                    dl_graph_max = max(
+                        dl_funnel_df["Count"].max(),
+                        1,
+                    )
+    
+                    fig_dl_funnel.update_layout(
+                        title=dict(
+                            text="DL Hiring Funnel",
+                            x=0.5,
+                            xanchor="center",
+                            font=dict(
+                                size=18,
+                                color="#243247",
+                            ),
+                        ),
+                        height=430,
+                        paper_bgcolor="#FFFFFF",
+                        plot_bgcolor="#FFFFFF",
+                        showlegend=False,
+                        margin=dict(
+                            l=50,
+                            r=25,
+                            t=75,
+                            b=85,
+                        ),
+                        xaxis=dict(
+                            title="",
+                            showgrid=False,
+                            tickfont=dict(
+                                size=11,
+                            ),
+                            automargin=True,
+                        ),
+                        yaxis=dict(
+                            title="Headcount",
+                            range=[
+                                0,
+                                dl_graph_max * 1.18,
+                            ],
+                            gridcolor="#E5E7EB",
+                            zeroline=False,
+                            automargin=True,
+                        ),
+                    )
+    
+                    st.plotly_chart(
+                        fig_dl_funnel,
+                        use_container_width=True,
+                        config={
+                            "displayModeBar": True,
+                            "displaylogo": False,
+                        },
+                    )
+    
+                # ----------------------------------------------------
+                # IDL HIRING FUNNEL
+                # ----------------------------------------------------
+                with graph_col2:
+    
+                    idl_funnel_df = pd.DataFrame(
+                        {
+                            "Stage": [
+                                "Last Week HC",
+                                "This Week HC",
+                                "Pending\nOnboard",
+                                "Pending\nAcceptance",
+                                "Attrition",
+                            ],
+                            "Count": [
+                                idl_last_week,
+                                idl_this_week,
+                                idl_pending_onboard,
+                                idl_pending_acceptance,
+                                idl_attrition,
+                            ],
+                        }
+                    )
+    
+                    fig_idl_funnel = px.bar(
+                        idl_funnel_df,
+                        x="Stage",
+                        y="Count",
+                        text="Count",
+                    )
+    
+                    fig_idl_funnel.update_traces(
+                        marker_color="#EF742C",
+                        textposition="outside",
+                        textfont=dict(
+                            size=14,
+                            color="#243247",
+                        ),
+                        cliponaxis=False,
+                        width=0.48,
+                        hovertemplate=(
+                            "<b>%{x}</b><br>"
+                            "Headcount: %{y:,}"
+                            "<extra></extra>"
+                        ),
+                    )
+    
+                    idl_graph_max = max(
+                        idl_funnel_df["Count"].max(),
+                        1,
+                    )
+    
+                    fig_idl_funnel.update_layout(
+                        title=dict(
+                            text="IDL Hiring Funnel",
+                            x=0.5,
+                            xanchor="center",
+                            font=dict(
+                                size=18,
+                                color="#243247",
+                            ),
+                        ),
+                        height=430,
+                        paper_bgcolor="#FFFFFF",
+                        plot_bgcolor="#FFFFFF",
+                        showlegend=False,
+                        margin=dict(
+                            l=50,
+                            r=25,
+                            t=75,
+                            b=85,
+                        ),
+                        xaxis=dict(
+                            title="",
+                            showgrid=False,
+                            tickfont=dict(
+                                size=11,
+                            ),
+                            automargin=True,
+                        ),
+                        yaxis=dict(
+                            title="Headcount",
+                            range=[
+                                0,
+                                idl_graph_max * 1.18,
+                            ],
+                            gridcolor="#E5E7EB",
+                            zeroline=False,
+                            automargin=True,
+                        ),
+                    )
+    
+                    st.plotly_chart(
+                        fig_idl_funnel,
+                        use_container_width=True,
+                        config={
+                            "displayModeBar": True,
+                            "displaylogo": False,
+                        },
+                    )
+    
+                # ----------------------------------------------------
+                # ATTRITION
+                # ----------------------------------------------------
+                with graph_col3:
+    
+                    attrition_df = pd.DataFrame(
+                        {
+                            "Type": [
+                                "DL",
+                                "IDL",
+                            ],
+                            "Count": [
+                                dl_attrition,
+                                idl_attrition,
+                            ],
+                        }
+                    )
+    
+                    fig_attrition = px.bar(
+                        attrition_df,
+                        x="Type",
+                        y="Count",
+                        text="Count",
+                    )
+    
+                    fig_attrition.update_traces(
+                        marker_color="#A62B97",
+                        textposition="outside",
+                        textfont=dict(
+                            size=15,
+                            color="#243247",
+                        ),
+                        cliponaxis=False,
+                        width=0.55,
+                        hovertemplate=(
+                            "<b>%{x}</b><br>"
+                            "Attrition: %{y:,}"
+                            "<extra></extra>"
+                        ),
+                    )
+    
+                    attrition_max = max(
+                        attrition_df["Count"].max(),
+                        1,
+                    )
+    
+                    fig_attrition.update_layout(
+                        title=dict(
+                            text=(
+                                "Attrition This Week "
+                                "(Resign / Transfer)"
+                            ),
+                            x=0.5,
+                            xanchor="center",
+                            font=dict(
+                                size=18,
+                                color="#243247",
+                            ),
+                        ),
+                        height=430,
+                        paper_bgcolor="#FFFFFF",
+                        plot_bgcolor="#FFFFFF",
+                        showlegend=False,
+                        margin=dict(
+                            l=50,
+                            r=25,
+                            t=75,
+                            b=85,
+                        ),
+                        xaxis=dict(
+                            title="",
+                            showgrid=False,
+                            tickfont=dict(
+                                size=13,
+                            ),
+                        ),
+                        yaxis=dict(
+                            title="Headcount",
+                            range=[
+                                0,
+                                attrition_max * 1.30,
+                            ],
+                            gridcolor="#E5E7EB",
+                            zeroline=False,
+                        ),
+                    )
+    
+                    st.plotly_chart(
+                        fig_attrition,
+                        use_container_width=True,
+                        config={
+                            "displayModeBar": True,
+                            "displaylogo": False,
+                        },
+                    )
     # ============================================================
     # DAILY ABSENCE RATE — WITH AND WITHOUT APPROVED LEAVE
     # ============================================================
