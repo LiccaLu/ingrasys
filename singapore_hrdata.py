@@ -3367,7 +3367,7 @@ The accompanying table includes:
                     )
 
                     # LINE — Department share of total OT
-                    fig.add_trace(
+                    fig_ot.add_trace(
                         go.Scatter(
                             x=ot_summary["Dept"],
                             y=ot_summary["OT Ratio (%)"],
