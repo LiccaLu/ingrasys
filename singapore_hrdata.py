@@ -930,9 +930,11 @@ def read_recruitment_weekly_reports(files):
                     ):
                         pending_onboard_col = col_index
 
+         
                     elif (
-                        "resign" in text
-                        or "transfer" in text
+                        attrition_col is None
+                        and "resign" in text
+                        and "transfer" in text
                     ):
                         attrition_col = col_index
 
