@@ -799,8 +799,11 @@ def read_recruitment_weekly_reports(files):
                         report_group_col = col_index
                         break
 
-                if report_group_col is not None:
-                    break
+                # Older reports may not contain "just for report".
+                # They can still be used for the weekly HC trend.
+                has_report_group = (
+                    report_group_col is not None
+                )
 
             # This sheet is not a usable recruitment report
             if report_group_col is None:
