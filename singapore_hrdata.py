@@ -1153,29 +1153,29 @@ def read_recruitment_weekly_reports(files):
     # 7. COMBINE ONLY THE FILES UPLOADED THIS TIME
     # ========================================================
     if not results:
-    return pd.DataFrame(
-        columns=[
-            "Date",
-            "DL",
-            "IDL",
-            "Total HC",
-
-            "DL Last Week HC",
-            "IDL Last Week HC",
-
-            "DL Pending Acceptance",
-            "IDL Pending Acceptance",
-
-            "DL Pending Onboard",
-            "IDL Pending Onboard",
-
-            "DL Attrition",
-            "IDL Attrition",
-
-            "Source File",
-            "Source Sheets",
-        ]
-    )
+        return pd.DataFrame(
+            columns=[
+                "Date",
+                "DL",
+                "IDL",
+                "Total HC",
+    
+                "DL Last Week HC",
+                "IDL Last Week HC",
+    
+                "DL Pending Acceptance",
+                "IDL Pending Acceptance",
+    
+                "DL Pending Onboard",
+                "IDL Pending Onboard",
+    
+                "DL Attrition",
+                "IDL Attrition",
+    
+                "Source File",
+                "Source Sheets",
+            ]
+        )
 
     recruitment_df = pd.DataFrame(
         results
