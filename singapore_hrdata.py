@@ -3378,18 +3378,6 @@ The accompanying table includes:
                             textposition="top center",   # or "top right"
                             line=dict(color="#ED6A2C", width=4),
                             marker=dict(size=10),
-                        )
-                    ),
-                            text=[
-                                f"{value:.1f}%"
-                                for value
-                                in ot_summary[
-                                    "OT Ratio"
-                                ]
-                            ],
-                            textposition=(
-                                "top center"
-                            ),
                             textfont=dict(
                                 size=14,
                                 color="#ED6A2C",
