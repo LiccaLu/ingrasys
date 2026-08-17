@@ -3670,296 +3670,227 @@ The accompanying table includes:
             )
     
             # ============================================================
-            # CHART A — INCLUDING APPROVED LEAVE
+            # CHART A + CHART B — ONE FIGURE
             # ============================================================
-            with st.container(border=True):
-                fig_rate_a = px.bar(
-                    daily_summary,
-                    x="Date",
-                    y="Rate A",
-                    text=daily_summary["Rate A"].map(
-                        lambda value: f"{value:.1f}%"
-                    ),
-                    custom_data=[
-                        "Scheduled",
-                        "Absent",
-                        "Approved Leave",
-                        "Absence incl. Approved Leave",
-                        "Rate A",
-                    ],
-                )
             
-                fig_rate_a.update_traces(
+            fig_absence = make_subplots(
+                rows=1,
+                cols=2,
+                subplot_titles=(
+                    "Chart A - Absence Rate incl. Approved Leave",
+                    "Chart B - Absence Rate excl. Approved Leave (Unplanned)",
+                ),
+                horizontal_spacing=0.10,
+            )
+            
+            
+            # ------------------------------------------------------------
+            # Chart A
+            # ------------------------------------------------------------
+            fig_absence.add_trace(
+                go.Bar(
+                    x=daily_summary["Date"],
+                    y=daily_summary["Rate A"],
                     marker_color="#285781",
-            
-                    # Do not set width=0.42 when x is a date axis.
-                    # Plotly interprets date-axis width in milliseconds.
+                    text=[
+                        f"{value:.1f}%"
+                        for value in daily_summary["Rate A"]
+                    ],
                     textposition="outside",
                     textfont=dict(
-                        size=16,
+                        size=13,
                         color="#111111",
                     ),
                     cliponaxis=False,
+                    customdata=daily_summary[
+                        [
+                            "Scheduled",
+                            "Absent",
+                            "Approved Leave",
+                            "Absence incl. Approved Leave",
+                            "Rate A",
+                        ]
+                    ],
                     hovertemplate=(
                         "<b>%{x|%Y-%m-%d}</b><br>"
                         "Scheduled shifts: %{customdata[0]:,}<br>"
                         "Unplanned absent: %{customdata[1]:,}<br>"
                         "Approved leave: %{customdata[2]:,}<br>"
-                        "Total incl. approved leave: "
-                        "%{customdata[3]:,}<br>"
+                        "Total incl. approved leave: %{customdata[3]:,}<br>"
                         "Absence rate A: %{customdata[4]:.2f}%"
                         "<extra></extra>"
                     ),
-                )
-            
-                maximum_rate_a = daily_summary["Rate A"].max()
-            
-                fig_rate_a.update_layout(
-                    title=dict(
-                        text=(
-                            "Chart A - Absence Rate "
-                            "incl. Approved Leave"
-                        ),
-                        x=0.5,
-                        xanchor="center",
-                        font=dict(
-                            size=22,
-                            color="#111111",
-                        ),
-                    ),
-                    height=520,
-                    paper_bgcolor="#FFFFFF",
-                    plot_bgcolor="#FFFFFF",
                     showlegend=False,
-                    bargap=0.55,
-                    margin=dict(
-                        l=80,
-                        r=50,
-                        t=100,
-                        b=100,
-                    ),
-                    font=dict(
-                        family="Arial, sans-serif",
-                        size=14,
-                        color="#243247",
-                    ),
-                    xaxis=dict(
-                        title="",
-                        type="date",
-                        tickformat="%Y-%m-%d",
-                        dtick="D1",
-                        showgrid=False,
-                        zeroline=False,
-                        showline=True,
-                        linecolor="#222222",
-                        linewidth=1.3,
-                        ticks="outside",
-                        ticklen=7,
-                        tickangle=0,
-                        tickfont=dict(
-                            size=16,
-                        ),
-                        automargin=True,
-                    ),
-                    yaxis=dict(
-                        title=dict(
-                            text="Absence Rate",
-                            font=dict(
-                                size=17,
-                            ),
-                        ),
-                        range=[
-                            0,
-                            max(
-                                5,
-                                maximum_rate_a * 1.28,
-                            ),
-                        ],
-                        ticksuffix="%",
-                        tickformat=".0f",
-                        showgrid=False,
-                        zeroline=False,
-                        showline=True,
-                        linecolor="#222222",
-                        linewidth=1.3,
-                        ticks="outside",
-                        ticklen=7,
-                        tickfont=dict(
-                            size=14,
-                        ),
-                        automargin=True,
-                    ),
-                    hoverlabel=dict(
-                        bgcolor="#243247",
-                        font_size=14,
-                        font_color="white",
-                        bordercolor="#243247",
-                    ),
-                )
-            
-                st.plotly_chart(
-                    fig_rate_a,
-                    use_container_width=True,
-                    config={
-                        "displayModeBar": True,
-                        "displaylogo": False,
-                        "toImageButtonOptions": {
-                            "format": "png",
-                            "filename": (
-                                "Absence_Rate_"
-                                "Including_Approved_Leave"
-                            ),
-                            "height": 900,
-                            "width": 1600,
-                            "scale": 2,
-                        },
-                    },
-                )
+                ),
+                row=1,
+                col=1,
+            )
             
             
-            # ============================================================
-            # CHART B — EXCLUDING APPROVED LEAVE
-            # ============================================================
-            with st.container(border=True):
-                fig_rate_b = px.bar(
-                    daily_summary,
-                    x="Date",
-                    y="Rate B",
-                    text=daily_summary["Rate B"].map(
-                        lambda value: f"{value:.1f}%"
-                    ),
-                    custom_data=[
-                        "Scheduled",
-                        "Absent",
-                        "Approved Leave",
-                        "Rate B",
-                    ],
-                )
-            
-                fig_rate_b.update_traces(
+            # ------------------------------------------------------------
+            # Chart B
+            # ------------------------------------------------------------
+            fig_absence.add_trace(
+                go.Bar(
+                    x=daily_summary["Date"],
+                    y=daily_summary["Rate B"],
                     marker_color="#C95A08",
-            
-                    # Do not set width=0.42 when x is a date axis.
+                    text=[
+                        f"{value:.1f}%"
+                        for value in daily_summary["Rate B"]
+                    ],
                     textposition="outside",
                     textfont=dict(
-                        size=16,
+                        size=13,
                         color="#111111",
                     ),
                     cliponaxis=False,
+                    customdata=daily_summary[
+                        [
+                            "Scheduled",
+                            "Absent",
+                            "Approved Leave",
+                            "Rate B",
+                        ]
+                    ],
                     hovertemplate=(
                         "<b>%{x|%Y-%m-%d}</b><br>"
                         "Scheduled shifts: %{customdata[0]:,}<br>"
                         "Unplanned absent: %{customdata[1]:,}<br>"
-                        "Approved leave excluded: "
-                        "%{customdata[2]:,}<br>"
+                        "Approved leave excluded: %{customdata[2]:,}<br>"
                         "Absence rate B: %{customdata[3]:.2f}%"
                         "<extra></extra>"
                     ),
-                )
-            
-                maximum_rate_b = daily_summary["Rate B"].max()
-            
-                fig_rate_b.update_layout(
-                    title=dict(
-                        text=(
-                            "Chart B - Absence Rate "
-                            "excl. Approved Leave (Unplanned)"
-                        ),
-                        x=0.5,
-                        xanchor="center",
-                        font=dict(
-                            size=22,
-                            color="#111111",
-                        ),
-                    ),
-                    height=520,
-                    paper_bgcolor="#FFFFFF",
-                    plot_bgcolor="#FFFFFF",
                     showlegend=False,
-                    bargap=0.55,
-                    margin=dict(
-                        l=80,
-                        r=50,
-                        t=100,
-                        b=100,
-                    ),
-                    font=dict(
-                        family="Arial, sans-serif",
-                        size=14,
-                        color="#243247",
-                    ),
-                    xaxis=dict(
-                        title="",
-                        type="date",
-                        tickformat="%Y-%m-%d",
-                        dtick="D1",
-                        showgrid=False,
-                        zeroline=False,
-                        showline=True,
-                        linecolor="#222222",
-                        linewidth=1.3,
-                        ticks="outside",
-                        ticklen=7,
-                        tickangle=0,
-                        tickfont=dict(
-                            size=16,
-                        ),
-                        automargin=True,
-                    ),
-                    yaxis=dict(
-                        title=dict(
-                            text="Absence Rate",
-                            font=dict(
-                                size=17,
-                            ),
-                        ),
-                        range=[
-                            0,
-                            max(
-                                5,
-                                maximum_rate_b * 1.28,
-                            ),
-                        ],
-                        ticksuffix="%",
-                        tickformat=".0f",
-                        showgrid=False,
-                        zeroline=False,
-                        showline=True,
-                        linecolor="#222222",
-                        linewidth=1.3,
-                        ticks="outside",
-                        ticklen=7,
-                        tickfont=dict(
-                            size=16,
-                        ),
-                        automargin=True,
-                    ),
-                    hoverlabel=dict(
-                        bgcolor="#243247",
-                        font_size=14,
-                        font_color="white",
-                        bordercolor="#243247",
-                    ),
-                )
+                ),
+                row=1,
+                col=2,
+            )
             
-                st.plotly_chart(
-                    fig_rate_b,
-                    use_container_width=True,
-                    config={
-                        "displayModeBar": True,
-                        "displaylogo": False,
-                        "toImageButtonOptions": {
-                            "format": "png",
-                            "filename": (
-                                "Absence_Rate_"
-                                "Excluding_Approved_Leave"
-                            ),
-                            "height": 900,
-                            "width": 1600,
-                            "scale": 2,
-                        },
-                    },
+            
+            maximum_rate_a = daily_summary["Rate A"].max()
+            maximum_rate_b = daily_summary["Rate B"].max()
+            
+            
+            # ------------------------------------------------------------
+            # X axes
+            # ------------------------------------------------------------
+            fig_absence.update_xaxes(
+                type="date",
+                tickformat="%Y-%m-%d",
+                dtick="D1",
+                tickangle=0,
+                showgrid=False,
+                showline=True,
+                linecolor="#222222",
+                ticks="outside",
+                tickfont=dict(size=11),
+                row=1,
+                col=1,
+            )
+            
+            fig_absence.update_xaxes(
+                type="date",
+                tickformat="%Y-%m-%d",
+                dtick="D1",
+                tickangle=0,
+                showgrid=False,
+                showline=True,
+                linecolor="#222222",
+                ticks="outside",
+                tickfont=dict(size=11),
+                row=1,
+                col=2,
+            )
+            
+            
+            # ------------------------------------------------------------
+            # Y axes
+            # ------------------------------------------------------------
+            fig_absence.update_yaxes(
+                title_text="Absence Rate",
+                range=[
+                    0,
+                    max(
+                        5,
+                        maximum_rate_a * 1.28,
+                    ),
+                ],
+                ticksuffix="%",
+                tickformat=".0f",
+                showgrid=False,
+                showline=True,
+                linecolor="#222222",
+                ticks="outside",
+                row=1,
+                col=1,
+            )
+            
+            fig_absence.update_yaxes(
+                title_text="Absence Rate",
+                range=[
+                    0,
+                    max(
+                        5,
+                        maximum_rate_b * 1.28,
+                    ),
+                ],
+                ticksuffix="%",
+                tickformat=".0f",
+                showgrid=False,
+                showline=True,
+                linecolor="#222222",
+                ticks="outside",
+                row=1,
+                col=2,
+            )
+            
+            
+            # ------------------------------------------------------------
+            # Overall figure
+            # ------------------------------------------------------------
+            fig_absence.update_layout(
+                height=500,
+                paper_bgcolor="#FFFFFF",
+                plot_bgcolor="#FFFFFF",
+                showlegend=False,
+                bargap=0.50,
+                margin=dict(
+                    l=60,
+                    r=40,
+                    t=90,
+                    b=85,
+                ),
+                font=dict(
+                    family="Arial, sans-serif",
+                    size=13,
+                    color="#243247",
+                ),
+            )
+            
+            fig_absence.update_annotations(
+                font=dict(
+                    size=16,
+                    color="#111111",
                 )
+            )
+            
+            
+            st.plotly_chart(
+                fig_absence,
+                use_container_width=True,
+                config={
+                    "displayModeBar": True,
+                    "displaylogo": False,
+                    "toImageButtonOptions": {
+                        "format": "png",
+                        "filename": "Absence_Rate_Chart_A_and_B",
+                        "height": 900,
+                        "width": 1600,
+                        "scale": 2,
+                    },
+                },
+            )
     
             # ====================================================
             # DATA TABLE
