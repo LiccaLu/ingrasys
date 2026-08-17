@@ -2174,7 +2174,7 @@ elif page == "03  Leave Data":
         metric_card("Employees", f"{leave_view['empid'].nunique():,}", "Unique employee IDs")
     with c3:
         valid_periods = (
-            leave_view["請假開始"].notna() & leave_view["請假結束"].notna()
+            leave_view["startdate"].notna() & leave_view["enddate"].notna()
         ).sum()
         metric_card("Valid periods", f"{valid_periods:,}", "Parsed start and end")
 
