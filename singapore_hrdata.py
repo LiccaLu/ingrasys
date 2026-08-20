@@ -1715,65 +1715,72 @@ page = st.sidebar.radio(
     label_visibility="collapsed",
 )
 
-st.sidebar.markdown("---")
-
-if st.session_state.attendance_df is not None:
-    st.sidebar.success("Data loaded")
-    st.sidebar.caption(st.session_state.file_names.get("attendance", ""))
-    st.sidebar.caption(st.session_state.file_names.get("leave", ""))
-else:
-    st.sidebar.caption("No files processed yet.")
-
-
 # ============================================================
-# 01 UPLOAD
+# PERSISTENT FILE UPLOADERS
+# Keep uploader widgets alive when changing pages
 # ============================================================
-if page == "01  Upload":
-    page_header("Upload")
+
+show_upload_page = page == "01  Upload"
+
+# Hide uploader area when user is on another page
+if not show_upload_page:
+    st.markdown(
+        """
+        <style>
+        .st-key-persistent_uploaders {
+            display: none !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+with st.container(key="persistent_uploaders"):
+
+    if show_upload_page:
+        page_header("Upload")
 
     col1, col2 = st.columns(2, gap="large")
 
+    # ========================================================
+    # ATTENDANCE
+    # ========================================================
     with col1:
+
         st.markdown(
             '<div class="section-title">ATTENDANCE FILE</div>',
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
-    
+
         attendance_file = st.file_uploader(
             "Attendance file",
             type=["xlsx", "xls"],
             key="attendance_upload",
-            label_visibility="collapsed"
+            label_visibility="collapsed",
         )
-    
-        if st.session_state.file_names.get("attendance"):
-            st.caption(
-                "✓ Loaded: "
-                + st.session_state.file_names["attendance"]
-            )
 
+    # ========================================================
+    # LEAVE
+    # ========================================================
     with col2:
+
         st.markdown(
             '<div class="section-title">LEAVE FILE</div>',
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
-    
+
         leave_file = st.file_uploader(
             "Leave file",
             type=["xlsx", "xls"],
             key="leave_upload",
-            label_visibility="collapsed"
+            label_visibility="collapsed",
         )
-    
-        if st.session_state.file_names.get("leave"):
-            st.caption(
-                "✓ Loaded: "
-                + st.session_state.file_names["leave"]
-            )
 
     # ========================================================
-    # RECRUITMENT WEEKLY REPORTS
+    # RECRUITMENT
     # ========================================================
+
     st.markdown(
         '<div class="section-title">'
         'RECRUITMENT WEEKLY REPORTS'
@@ -1789,86 +1796,10 @@ if page == "01  Upload":
         label_visibility="collapsed",
     )
 
-    # --------------------------------------------------------
-    # Automatically process CURRENT uploaded recruitment files
-    # --------------------------------------------------------
-    if recruitment_files:
-    
-        current_signature = tuple(
-            (
-                file.name,
-                file.size,
-            )
-            for file in recruitment_files
-        )
-    
-        previous_signature = (
-            st.session_state.get(
-                "recruitment_file_signature"
-            )
-        )
-    
-        if (
-            current_signature
-            != previous_signature
-        ):
-    
-            try:
-    
-                recruitment_hc_df = (
-                    read_recruitment_weekly_reports(
-                        recruitment_files
-                    )
-                )
-    
-                # IMPORTANT:
-                # Replace old data completely.
-                # Do NOT concat with previous session data.
-                st.session_state[
-                    "recruitment_hc_df"
-                ] = recruitment_hc_df
-    
-                st.session_state[
-                    "recruitment_file_signature"
-                ] = current_signature
-    
-                st.session_state.file_names[
-                    "recruitment"
-                ] = [
-                    file.name
-                    for file
-                    in recruitment_files
-                ]
-
-                if st.session_state.file_names.get("recruitment"):
-                    for name in st.session_state.file_names["recruitment"]:
-                        st.caption(f"✓ Loaded: {name}")
-    
-                st.success(
-                    f"{len(recruitment_files)} "
-                    "Recruitment Weekly Report(s) loaded."
-                )
-    
-            except Exception as exc:
-    
-                st.session_state[
-                    "recruitment_hc_df"
-                ] = None
-    
-                st.session_state.pop(
-                    "recruitment_file_signature",
-                    None,
-                )
-    
-                st.error(
-                    "Unable to read Recruitment Weekly Reports: "
-                    f"{exc}"
-                )
-    
-        
     # ========================================================
     # OT REPORT
     # ========================================================
+
     st.markdown(
         '<div class="section-title">'
         'OT REPORT'
@@ -1882,6 +1813,90 @@ if page == "01  Upload":
         key="ot_upload",
         label_visibility="collapsed",
     )
+    
+st.sidebar.markdown("---")
+
+if st.session_state.attendance_df is not None:
+    st.sidebar.success("Data loaded")
+    st.sidebar.caption(st.session_state.file_names.get("attendance", ""))
+    st.sidebar.caption(st.session_state.file_names.get("leave", ""))
+else:
+    st.sidebar.caption("No files processed yet.")
+    
+# ============================================================
+# 01 UPLOAD
+# ============================================================
+if page == "01  Upload":
+
+    # ========================================================
+    # AUTOMATICALLY PROCESS RECRUITMENT
+    # ========================================================
+    if recruitment_files:
+
+        current_signature = tuple(
+            (
+                file.name,
+                file.size,
+            )
+            for file in recruitment_files
+        )
+
+        previous_signature = (
+            st.session_state.get(
+                "recruitment_file_signature"
+            )
+        )
+
+        if current_signature != previous_signature:
+
+            try:
+
+                recruitment_hc_df = (
+                    read_recruitment_weekly_reports(
+                        recruitment_files
+                    )
+                )
+
+                st.session_state[
+                    "recruitment_hc_df"
+                ] = recruitment_hc_df
+
+                st.session_state[
+                    "recruitment_file_signature"
+                ] = current_signature
+
+                st.session_state.file_names[
+                    "recruitment"
+                ] = [
+                    file.name
+                    for file in recruitment_files
+                ]
+
+                st.success(
+                    f"{len(recruitment_files)} "
+                    "Recruitment Weekly Report(s) loaded."
+                )
+
+            except Exception as exc:
+
+                st.session_state[
+                    "recruitment_hc_df"
+                ] = None
+
+                st.session_state.pop(
+                    "recruitment_file_signature",
+                    None,
+                )
+
+                st.error(
+                    "Unable to read Recruitment Weekly Reports: "
+                    f"{exc}"
+                )
+
+
+    # ========================================================
+    # AUTOMATICALLY PROCESS OT
+    # ========================================================
 
     if ot_file is not None:
 
