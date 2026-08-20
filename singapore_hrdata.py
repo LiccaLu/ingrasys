@@ -1982,12 +1982,6 @@ if page == "01  Upload":
                     "ot"
                 ] = ot_file.name
 
-                if st.session_state.file_names.get("ot"):
-                    st.caption(
-                        "✓ Loaded: "
-                        + st.session_state.file_names["ot"]
-                    )
-
                 st.success(
                     "OT Report loaded."
                 )
