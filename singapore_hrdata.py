@@ -2385,6 +2385,20 @@ The accompanying table includes:
                 )
             )
 
+            st.write("DEBUG SOURCE SHEETS")
+            st.write(
+                recruitment_hc_df[
+                    [
+                        "Date",
+                        "DL",
+                        "IDL",
+                        "Total HC",
+                        "Source File",
+                        "Source Sheets",
+                    ]
+                ]
+            )
+
             # Mark newest report as Current
             if not hc_chart_data.empty:
 
