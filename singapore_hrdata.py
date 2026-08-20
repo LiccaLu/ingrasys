@@ -1847,15 +1847,21 @@ if page == "01  Upload":
     # AUTOMATICALLY PROCESS RECRUITMENT
     # ========================================================
     if recruitment_files:
-
-        current_signature = tuple(
-            (
-                file.name,
-                file.size,
-            )
-            for file in recruitment_files
+    
+        # Change this whenever recruitment parsing logic changes.
+        RECRUITMENT_PARSER_VERSION = "v4"
+    
+        current_signature = (
+            RECRUITMENT_PARSER_VERSION,
+            tuple(
+                (
+                    file.name,
+                    file.size,
+                )
+                for file in recruitment_files
+            ),
         )
-
+    
         previous_signature = (
             st.session_state.get(
                 "recruitment_file_signature"
