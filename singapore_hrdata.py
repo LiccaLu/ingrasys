@@ -766,6 +766,18 @@ def read_recruitment_weekly_reports(files):
         # ====================================================
         for sheet_name in excel.sheet_names:
 
+            sheet_name_upper = (
+                str(sheet_name)
+                .strip()
+                .upper()
+            )
+            
+            if (
+                "DELETED" in sheet_name_upper
+                or "READ ME" in sheet_name_upper
+            ):
+                continue
+    
             raw = pd.read_excel(
                 file,
                 sheet_name=sheet_name,
@@ -876,10 +888,10 @@ def read_recruitment_weekly_reports(files):
                 if total_col is not None:
                     break
 
-            # Need Type + Current HC for Weekly trend.
-            # If missing, this sheet is not a usable recruitment sheet.
+            # Need "just for report" + Current HC
+            # for Weekly to Monthly trend.
             if (
-                type_col is None
+                report_group_col is None
                 or total_col is None
             ):
                 continue
@@ -982,12 +994,25 @@ def read_recruitment_weekly_reports(files):
 
             # =================================================
             # 6. WEEKLY TO MONTHLY TREND
-            # Classification = Type
+            # Classification = "just for report"
+            #
+            # Rule:
+            # IDL          -> IDL
+            # Number       -> DL
+            # NOT INCLUDE  -> exclude
+            # Blank        -> exclude
             # =================================================
-            type_values = (
+            
+            if report_group_col is None:
+                # This sheet cannot be used for Weekly to Monthly
+                # if there is no "just for report" column.
+                continue
+            
+            
+            report_group_values = (
                 raw.iloc[
                     data_start:,
-                    type_col,
+                    report_group_col,
                 ]
                 .fillna("")
                 .astype(str)
@@ -995,30 +1020,50 @@ def read_recruitment_weekly_reports(files):
                 .str.upper()
                 .reset_index(drop=True)
             )
-
-            weekly_dl_mask = (
-                type_values == "DL"
-            )
-
+            
+            
+            # -------------------------------------------------
+            # IDL
+            # -------------------------------------------------
             weekly_idl_mask = (
-                type_values == "IDL"
+                report_group_values == "IDL"
             )
-
+            
+            
+            # -------------------------------------------------
+            # DL
+            #
+            # DL rows in "just for report" are numbers:
+            # 1, 2, 3, ...
+            # -------------------------------------------------
+            weekly_dl_mask = (
+                pd.to_numeric(
+                    report_group_values,
+                    errors="coerce",
+                )
+                .notna()
+            )
+            
+            
+            # -------------------------------------------------
+            # Sum current-week Total HC
+            # -------------------------------------------------
             sheet_dl = int(
                 current_hc_values[
                     weekly_dl_mask
                 ].sum()
             )
-
+            
             sheet_idl = int(
                 current_hc_values[
                     weekly_idl_mask
                 ].sum()
             )
-
+            
+            
             file_dl += sheet_dl
             file_idl += sheet_idl
-
+            
             used_sheets.append(
                 sheet_name
             )
@@ -2385,19 +2430,6 @@ The accompanying table includes:
                 )
             )
 
-            st.write("DEBUG SOURCE SHEETS")
-            st.write(
-                recruitment_hc_df[
-                    [
-                        "Date",
-                        "DL",
-                        "IDL",
-                        "Total HC",
-                        "Source File",
-                        "Source Sheets",
-                    ]
-                ]
-            )
 
             # Mark newest report as Current
             if not hc_chart_data.empty:
