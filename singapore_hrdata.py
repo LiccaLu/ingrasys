@@ -1032,18 +1032,11 @@ def read_recruitment_weekly_reports(files):
             
             # -------------------------------------------------
             # DL
-            #
-            # DL rows in "just for report" are numbers:
-            # 1, 2, 3, ...
             # -------------------------------------------------
             weekly_dl_mask = (
-                pd.to_numeric(
-                    report_group_values,
-                    errors="coerce",
-                )
-                .notna()
+                report_group_values == "DL"
             )
-            
+                        
             
             # -------------------------------------------------
             # Sum current-week Total HC
