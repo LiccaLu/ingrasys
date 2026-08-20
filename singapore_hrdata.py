@@ -935,14 +935,14 @@ def read_recruitment_weekly_reports(files):
                     elif "pendingacceptance" in text:
                         pending_acceptance_col = col_index
 
-                    elif any(
-                        keyword in text
-                        for keyword in [
-                            "awaitingonboarding",
-                            "awaitingonboard",
-                            "pendingonboarding",
-                            "pendingonboard",
-                        ]
+                    # Pending / Awaiting Onboard
+                    elif (
+                        (
+                            "pending" in text
+                            or "awaiting" in text
+                        )
+                        and "onboard" in text
+                        and "acceptance" not in text
                     ):
                         pending_onboard_col = col_index
 
