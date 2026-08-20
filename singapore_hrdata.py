@@ -2020,11 +2020,9 @@ if page == "01  Upload":
                 st.session_state.al_df = al
                 st.session_state.other_leave_df = other
 
-                st.session_state.file_names = {
-                    "attendance": attendance_file.name,
-                    "leave": leave_file.name,
-                    "sheet": sheet
-                }
+                st.session_state.file_names["attendance"] = attendance_file.name
+                st.session_state.file_names["leave"] = leave_file.name
+                st.session_state.file_names["sheet"] = sheet
 
                 statuses = attendance["判斷出勤after leave"]
 
