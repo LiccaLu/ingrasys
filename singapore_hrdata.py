@@ -4743,7 +4743,7 @@ The accompanying table includes:
                     [
                         "Leave Type",
                         "Count",
-                        "Percentage",
+                        "Percentage",    －
                     ]
                 ]
                 .sort_values(
