@@ -1095,30 +1095,27 @@ def read_recruitment_weekly_reports(files):
                 )
             )
 
-            # IDL -> IDL
-            plant_idl_mask = (
-                report_group == "IDL"
-            )
-
+            # =================================================
+            # Plant Workforce classification
+            #
+            # just for report:
+            # DL          -> DL
+            # IDL         -> IDL
             # NOT INCLUDE -> excluded
+            # Blank       -> excluded
+            # =================================================
+            
             not_include_mask = (
-                report_group
-                == "NOT INCLUDE"
+                report_group == "NOT INCLUDE"
             )
-
-            # Numeric -> DL
-            numeric_group = pd.to_numeric(
-                report_group,
-                errors="coerce",
-            )
-
+            
             plant_dl_mask = (
-                numeric_group.notna()
+                (report_group == "DL")
                 & ~not_include_mask
             )
-
+            
             plant_idl_mask = (
-                plant_idl_mask
+                (report_group == "IDL")
                 & ~not_include_mask
             )
 
@@ -1281,16 +1278,34 @@ def read_recruitment_weekly_reports(files):
                 # DL:
                 # just for report is a number
                 # ---------------------------------------------
-                attrition_numeric_group = (
-                    pd.to_numeric(
-                        attrition_report_group,
-                        errors="coerce",
-                    )
-                )
-            
                 attrition_dl_mask = (
-                    attrition_numeric_group
-                    .notna()
+                    attrition_report_group
+                    .eq("DL")
+                )
+                
+                attrition_idl_mask = (
+                    attrition_report_group
+                    .eq("IDL")
+                )
+                
+                attrition_exclude_mask = (
+                    attrition_report_group
+                    .str.replace(
+                        r"\s+",
+                        " ",
+                        regex=True,
+                    )
+                    .eq("NOT INCLUDE")
+                )
+                
+                attrition_dl_mask = (
+                    attrition_dl_mask
+                    & ~attrition_exclude_mask
+                )
+                
+                attrition_idl_mask = (
+                    attrition_idl_mask
+                    & ~attrition_exclude_mask
                 )
             
                 # ---------------------------------------------
