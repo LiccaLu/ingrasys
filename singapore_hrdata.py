@@ -1738,26 +1738,38 @@ if page == "01  Upload":
             '<div class="section-title">ATTENDANCE FILE</div>',
             unsafe_allow_html=True
         )
-
+    
         attendance_file = st.file_uploader(
             "Attendance file",
             type=["xlsx", "xls"],
             key="attendance_upload",
             label_visibility="collapsed"
         )
+    
+        if st.session_state.file_names.get("attendance"):
+            st.caption(
+                "✓ Loaded: "
+                + st.session_state.file_names["attendance"]
+            )
 
     with col2:
         st.markdown(
             '<div class="section-title">LEAVE FILE</div>',
             unsafe_allow_html=True
         )
-
+    
         leave_file = st.file_uploader(
             "Leave file",
             type=["xlsx", "xls"],
             key="leave_upload",
             label_visibility="collapsed"
         )
+    
+        if st.session_state.file_names.get("leave"):
+            st.caption(
+                "✓ Loaded: "
+                + st.session_state.file_names["leave"]
+            )
 
     # ========================================================
     # RECRUITMENT WEEKLY REPORTS
@@ -1827,6 +1839,10 @@ if page == "01  Upload":
                     for file
                     in recruitment_files
                 ]
+
+                if st.session_state.file_names.get("recruitment"):
+                    for name in st.session_state.file_names["recruitment"]:
+                        st.caption(f"✓ Loaded: {name}")
     
                 st.success(
                     f"{len(recruitment_files)} "
@@ -1849,22 +1865,6 @@ if page == "01  Upload":
                     f"{exc}"
                 )
     
-    else:
-        # IMPORTANT:
-        # If uploader is empty, remove old recruitment data
-        st.session_state[
-            "recruitment_hc_df"
-        ] = None
-    
-        st.session_state.pop(
-            "recruitment_file_signature",
-            None,
-        )
-    
-        st.session_state.file_names.pop(
-            "recruitment",
-            None,
-        )
         
     # ========================================================
     # OT REPORT
@@ -1967,6 +1967,12 @@ if page == "01  Upload":
                     "ot"
                 ] = ot_file.name
 
+                if st.session_state.file_names.get("ot"):
+                    st.caption(
+                        "✓ Loaded: "
+                        + st.session_state.file_names["ot"]
+                    )
+
                 st.success(
                     "OT Report loaded."
                 )
@@ -1984,19 +1990,6 @@ if page == "01  Upload":
                     "Unable to read OT Report: "
                     f"{exc}"
                 )
-
-    else:
-        st.session_state["ot_df"] = None
-
-        st.session_state.pop(
-            "ot_file_signature",
-            None,
-        )
-
-        st.session_state.file_names.pop(
-            "ot",
-            None,
-        )
    
             
         
