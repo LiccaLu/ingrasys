@@ -583,18 +583,31 @@ def read_and_process(attendance_file, leave_file):
         al_raw = pd.DataFrame()
     
     # ------------------------------------------------------------
-    # Read Other Leave sheet if it exists
+    # Read Other Leave sheet
+    # Case-insensitive: Other Leave / Other leave / OTHER LEAVE
     # ------------------------------------------------------------
-    if "Other Leave" in leave_excel.sheet_names:
+    
+    other_leave_sheet = next(
+        (
+            sheet
+            for sheet in leave_excel.sheet_names
+            if str(sheet).strip().casefold() == "other leave"
+        ),
+        None,
+    )
+    
+    if other_leave_sheet is not None:
         other_raw = pd.read_excel(
             leave_file,
-            sheet_name="Other Leave",
+            sheet_name=other_leave_sheet,
         )
+    
         other_raw.columns = (
             other_raw.columns
             .astype(str)
             .str.strip()
         )
+    
     else:
         other_raw = pd.DataFrame()
     
