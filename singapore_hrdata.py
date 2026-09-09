@@ -3830,11 +3830,6 @@ The accompanying table includes:
                 daily_summary["Approved_Leave"]
                 .astype(int)
             )
-            
-            daily_summary["No Pay Leave"] = (
-                daily_summary["No_Pay_Leave"]
-                .astype(int)
-            )
     
             # Chart A numerator:
             # Absent + approved leave
@@ -3947,7 +3942,8 @@ The accompanying table includes:
                             [
                                 "Scheduled",
                                 "Absent",
-                                "Approved Leave",
+                                "No Pay Leave",
+                                "Absence + No Pay Leave",
                             ]
                         ],
             
