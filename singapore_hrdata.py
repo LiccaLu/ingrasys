@@ -1885,7 +1885,7 @@ if page == "01  Upload":
     if recruitment_files:
     
         # Change this whenever recruitment parsing logic changes.
-        RECRUITMENT_PARSER_VERSION = "v8"
+        RECRUITMENT_PARSER_VERSION = "v9"
     
         current_signature = (
             RECRUITMENT_PARSER_VERSION,
@@ -3846,7 +3846,7 @@ The accompanying table includes:
                     go.Bar(
                         x=daily_summary["Date"],
                         y=daily_summary["Rate B"],
-                        name="Excl. Approved Leave (Unplanned)",
+                        name="Absent + No Pay Leave",
                         marker_color="#C95A08",
             
                         text=[
@@ -3871,10 +3871,10 @@ The accompanying table includes:
                         hovertemplate=(
                             "<b>%{x|%Y-%m-%d}</b><br>"
                             "Scheduled shifts: %{customdata[0]:,}<br>"
-                            "Unplanned absent: %{customdata[1]:,}<br>"
-                            "Approved leave excluded: "
-                            "%{customdata[2]:,}<br>"
-                            "Rate excl. approved leave: %{y:.2f}%"
+                            "Absent: %{customdata[1]:,}<br>"
+                            "No Pay Leave: %{customdata[2]:,}<br>"
+                            "Absent + No Pay Leave: %{customdata[3]:,}<br>"
+                            "Rate: %{y:.2f}%"
                             "<extra></extra>"
                         ),
                     )
@@ -4022,8 +4022,10 @@ The accompanying table includes:
                     "Date Label",
                     "Scheduled",
                     "Absent",
+                    "No Pay Leave",
                     "Approved Leave",
                     "Absence incl. Approved Leave",
+                    "Absence + No Pay Leave",
                     "Rate A",
                     "Rate B",
                 ]
