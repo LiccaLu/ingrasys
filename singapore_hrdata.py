@@ -1046,13 +1046,14 @@ def read_recruitment_weekly_reports(files):
                     weekly_dl_mask
                 ].sum()
             )
-            IDL_WEEKLY_COLUMN_INDEX = 21
+         
 
             # -------------------------------------------------
             # IDL
             # NEW FORMAT:
             # Get IDL HC from Excel Column V
             # -------------------------------------------------
+            IDL_WEEKLY_COLUMN_INDEX = 22
             
             idl_weekly_values = (
                 pd.to_numeric(
