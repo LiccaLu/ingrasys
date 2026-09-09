@@ -4183,9 +4183,9 @@ The accompanying table includes:
                     "Date Label",
                     "Scheduled",
                     "Absent",
+                    "All Leave",
                     "No Pay Leave",
-                    "Approved Leave",
-                    "Absence incl. Approved Leave",
+                    "Overall Absent",
                     "Absence + No Pay Leave",
                     "Rate A",
                     "Rate B",
@@ -4195,26 +4195,26 @@ The accompanying table includes:
             daily_rate_table = daily_rate_table.rename(
                 columns={
                     "Date Label": "Date",
-                    "Rate A": (
-                        "Rate A incl. Approved Leave (%)"
-                    ),
-                    "Rate B": (
-                        "Rate B excl. Approved Leave (%)"
-                    ),
+                    "Rate A": "Overall Absent Rate (%)",
+                    "Rate B": "Absent + No Pay Leave Rate (%)",
                 }
             )
     
             daily_rate_table[
-                "Rate A incl. Approved Leave (%)"
-            ] = daily_rate_table[
-                "Rate A incl. Approved Leave (%)"
-            ].round(2)
+                "Overall Absent Rate (%)"
+            ] = (
+                daily_rate_table[
+                    "Overall Absent Rate (%)"
+                ].round(2)
+            )
     
             daily_rate_table[
-                "Rate B excl. Approved Leave (%)"
-            ] = daily_rate_table[
-                "Rate B excl. Approved Leave (%)"
-            ].round(2)
+                "Absent + No Pay Leave Rate (%)"
+            ] = (
+                daily_rate_table[
+                    "Absent + No Pay Leave Rate (%)"
+                ].round(2)
+            )
     
             st.dataframe(
                 daily_rate_table,
