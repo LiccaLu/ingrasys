@@ -1053,27 +1053,20 @@ def read_recruitment_weekly_reports(files):
             # NEW FORMAT:
             # Get IDL HC from Excel Column V
             # -------------------------------------------------
-            IDL_WEEKLY_COLUMN_INDEX = 22
-            
-            idl_weekly_values = (
+            IDL_COLUMN_V = 21
+
+            sheet_idl = int(
                 pd.to_numeric(
                     raw.iloc[
                         data_start:,
-                        IDL_WEEKLY_COLUMN_INDEX,
+                        IDL_COLUMN_V,
                     ],
                     errors="coerce",
                 )
                 .fillna(0)
-                .reset_index(drop=True)
+                .sum()
             )
-            
-            sheet_idl = int(
-                current_hc_values[
-                    weekly_idl_mask
-                ].sum()
-            )
-            
-            
+
             file_dl += sheet_dl
             file_idl += sheet_idl
             
@@ -1869,7 +1862,7 @@ if page == "01  Upload":
     if recruitment_files:
     
         # Change this whenever recruitment parsing logic changes.
-        RECRUITMENT_PARSER_VERSION = "v6"
+        RECRUITMENT_PARSER_VERSION = "v7"
     
         current_signature = (
             RECRUITMENT_PARSER_VERSION,
