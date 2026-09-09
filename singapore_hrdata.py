@@ -3733,7 +3733,91 @@ The accompanying table includes:
                 .reset_index()
                 .sort_values("Date")
             )
-
+            # ============================================================
+            # ALL LEAVE = AL + OTHER LEAVE
+            # Directly from Leave Excel
+            # ============================================================
+            
+            all_leave_parts = []
+            
+            # -------------------------
+            # AL
+            # -------------------------
+            al_leave = st.session_state.get("al_df")
+            
+            if isinstance(al_leave, pd.DataFrame) and not al_leave.empty:
+                al_temp = al_leave.copy()
+            
+                if "請假開始" in al_temp.columns:
+                    al_temp["Date"] = (
+                        pd.to_datetime(
+                            al_temp["請假開始"],
+                            errors="coerce",
+                        )
+                        .dt.normalize()
+                    )
+            
+                    all_leave_parts.append(
+                        al_temp[["Date"]]
+                    )
+            
+            
+            # -------------------------
+            # OTHER LEAVE
+            # -------------------------
+            other_leave_all = st.session_state.get("other_leave_df")
+            
+            if (
+                isinstance(other_leave_all, pd.DataFrame)
+                and not other_leave_all.empty
+            ):
+                other_temp = other_leave_all.copy()
+            
+                if "請假開始" in other_temp.columns:
+                    other_temp["Date"] = (
+                        pd.to_datetime(
+                            other_temp["請假開始"],
+                            errors="coerce",
+                        )
+                        .dt.normalize()
+                    )
+            
+                    all_leave_parts.append(
+                        other_temp[["Date"]]
+                    )
+            
+            
+            # -------------------------
+            # Combine AL + Other Leave
+            # -------------------------
+            if all_leave_parts:
+            
+                all_leave_daily = (
+                    pd.concat(
+                        all_leave_parts,
+                        ignore_index=True,
+                    )
+                    .dropna(subset=["Date"])
+                    .groupby("Date")
+                    .size()
+                    .reset_index(name="All Leave")
+                )
+            
+                daily_summary = daily_summary.merge(
+                    all_leave_daily,
+                    on="Date",
+                    how="left",
+                )
+            
+                daily_summary["All Leave"] = (
+                    daily_summary["All Leave"]
+                    .fillna(0)
+                    .astype(int)
+                )
+            
+            else:
+                daily_summary["All Leave"] = 0
+    
             # ============================================================
             # NO PAY LEAVE
             # Directly from Leave Excel -> Other Leave -> leavetype
@@ -3833,16 +3917,14 @@ The accompanying table includes:
     
             # Chart A numerator:
             # Absent + approved leave
-            daily_summary["Absence incl. Approved Leave"] = (
+            daily_summary["Overall Absent"] = (
                 daily_summary["Absent"]
-                + daily_summary["Approved Leave"]
+                + daily_summary["All Leave"]
             )
     
             # Chart A percentage
             daily_summary["Rate A"] = (
-                daily_summary[
-                    "Absence incl. Approved Leave"
-                ]
+                daily_summary["Overall Absent"]
                 / daily_summary["Scheduled"].replace(0, pd.NA)
                 * 100
             ).fillna(0)
@@ -3881,7 +3963,7 @@ The accompanying table includes:
                     go.Bar(
                         x=daily_summary["Date"],
                         y=daily_summary["Rate A"],
-                        name="Incl. Approved Leave",
+                        name="Overall Absent Rate",
                         marker_color="#285781",
             
                         text=[
@@ -3899,8 +3981,8 @@ The accompanying table includes:
                             [
                                 "Scheduled",
                                 "Absent",
-                                "Approved Leave",
-                                "Absence incl. Approved Leave",
+                                "All Leave",
+                                "Overall Absent"
                             ]
                         ],
             
