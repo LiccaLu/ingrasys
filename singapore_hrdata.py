@@ -1082,6 +1082,9 @@ def read_recruitment_weekly_reports(files):
             # simply skip Plant calculations.
             # Weekly trend above is still retained.
             # =================================================
+            IDL_LAST_WEEK_COLUMN_J = 9
+            IDL_THIS_WEEK_COLUMN_V = 21
+            
             if report_group_col is None:
                 continue
 
@@ -1142,10 +1145,20 @@ def read_recruitment_weekly_reports(files):
                 ].sum()
             )
 
+            idl_this_week_values = (
+                pd.to_numeric(
+                    raw.iloc[
+                        data_start:,
+                        IDL_THIS_WEEK_COLUMN_V,
+                    ],
+                    errors="coerce",
+                )
+                .fillna(0)
+                .reset_index(drop=True)
+            )
+            
             plant_idl_this_week += int(
-                current_hc_values[
-                    plant_idl_mask
-                ].sum()
+                idl_this_week_values.sum()
             )
 
             # -------------------------------------------------
@@ -1172,10 +1185,20 @@ def read_recruitment_weekly_reports(files):
                     ].sum()
                 )
 
+                idl_last_week_values = (
+                    pd.to_numeric(
+                        raw.iloc[
+                            data_start:,
+                            IDL_LAST_WEEK_COLUMN_J,
+                        ],
+                        errors="coerce",
+                    )
+                    .fillna(0)
+                    .reset_index(drop=True)
+                )
+                
                 plant_idl_last_week += int(
-                    last_week_values[
-                        plant_idl_mask
-                    ].sum()
+                    idl_last_week_values.sum()
                 )
 
             # -------------------------------------------------
@@ -1862,7 +1885,7 @@ if page == "01  Upload":
     if recruitment_files:
     
         # Change this whenever recruitment parsing logic changes.
-        RECRUITMENT_PARSER_VERSION = "v7"
+        RECRUITMENT_PARSER_VERSION = "v8"
     
         current_signature = (
             RECRUITMENT_PARSER_VERSION,
