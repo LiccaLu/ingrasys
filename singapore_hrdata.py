@@ -1869,7 +1869,7 @@ if page == "01  Upload":
     if recruitment_files:
     
         # Change this whenever recruitment parsing logic changes.
-        RECRUITMENT_PARSER_VERSION = "v5"
+        RECRUITMENT_PARSER_VERSION = "v6"
     
         current_signature = (
             RECRUITMENT_PARSER_VERSION,
