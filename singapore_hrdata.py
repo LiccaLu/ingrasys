@@ -3716,10 +3716,22 @@ The accompanying table includes:
                             values == "Leave Approved"
                         ).sum(),
                     ),
+                    No_Pay_Leave=(
+                        "Leave Type",
+                        lambda values: (
+                            values
+                            .fillna("")
+                            .astype(str)
+                            .str.strip()
+                            .str.casefold()
+                            == "no pay leave"
+                        ).sum(),
+                    ),
                 )
                 .reset_index()
                 .sort_values("Date")
             )
+
     
             daily_summary["Scheduled"] = (
                 daily_summary["Scheduled"]
@@ -3733,6 +3745,11 @@ The accompanying table includes:
     
             daily_summary["Approved Leave"] = (
                 daily_summary["Approved_Leave"]
+                .astype(int)
+            )
+            
+            daily_summary["No Pay Leave"] = (
+                daily_summary["No_Pay_Leave"]
                 .astype(int)
             )
     
@@ -3752,10 +3769,16 @@ The accompanying table includes:
                 * 100
             ).fillna(0)
     
-            # Chart B percentage:
-            # Actual unplanned absence only
-            daily_summary["Rate B"] = (
+            # Chart B numerator:
+            # Absent + No Pay Leave
+            daily_summary["Absence + No Pay Leave"] = (
                 daily_summary["Absent"]
+                + daily_summary["No Pay Leave"]
+            )
+            
+            # Chart B percentage:
+            daily_summary["Rate B"] = (
+                daily_summary["Absence + No Pay Leave"]
                 / daily_summary["Scheduled"].replace(0, pd.NA)
                 * 100
             ).fillna(0)
