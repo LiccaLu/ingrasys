@@ -1046,6 +1046,25 @@ def read_recruitment_weekly_reports(files):
                     weekly_dl_mask
                 ].sum()
             )
+            IDL_WEEKLY_COLUMN_INDEX = 21
+
+            # -------------------------------------------------
+            # IDL
+            # NEW FORMAT:
+            # Get IDL HC from Excel Column V
+            # -------------------------------------------------
+            
+            idl_weekly_values = (
+                pd.to_numeric(
+                    raw.iloc[
+                        data_start:,
+                        IDL_WEEKLY_COLUMN_INDEX,
+                    ],
+                    errors="coerce",
+                )
+                .fillna(0)
+                .reset_index(drop=True)
+            )
             
             sheet_idl = int(
                 current_hc_values[
