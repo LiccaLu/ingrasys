@@ -4265,6 +4265,11 @@ The accompanying table includes:
                         y=y_column,
                         color="部門",
                         markers=True,
+                        color_discrete_map={
+                            "Production - Ingrasys": "#0068C9",
+                            "Quality - Ingrasys": "#2CA02C",
+                            "Warehouse - Ingrasys": "#FF2B2B",
+                        },
                         custom_data=[
                             "Scheduled",
                             "Absent",
