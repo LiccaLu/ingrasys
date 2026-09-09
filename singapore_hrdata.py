@@ -3724,7 +3724,7 @@ The accompanying table includes:
                             .astype(str)
                             .str.strip()
                             .str.casefold()
-                            == "no pay leave"
+                            == "No Pay Leave"
                         ).sum(),
                     ),
                 )
