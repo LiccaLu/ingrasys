@@ -3716,22 +3716,92 @@ The accompanying table includes:
                             values == "Leave Approved"
                         ).sum(),
                     ),
-                    No_Pay_Leave=(
-                        "Leave Type",
-                        lambda values: (
-                            values
-                            .fillna("")
-                            .astype(str)
-                            .str.strip()
-                            .str.casefold()
-                            == "No Pay Leave"
-                        ).sum(),
-                    ),
                 )
                 .reset_index()
                 .sort_values("Date")
             )
 
+            # ============================================================
+            # NO PAY LEAVE
+            # Directly from Leave Excel -> Other Leave -> leavetype
+            # ============================================================
+            
+            other_leave = st.session_state.get("other_leave_df")
+            
+            if isinstance(other_leave, pd.DataFrame) and not other_leave.empty:
+            
+                no_pay_leave = other_leave.copy()
+            
+                # --------------------------------------------------------
+                # Find leave type column
+                # --------------------------------------------------------
+                if "leave type" in no_pay_leave.columns:
+                    leave_type_col = "leave type"
+                elif "leavetype" in no_pay_leave.columns:
+                    leave_type_col = "leavetype"
+                else:
+                    leave_type_col = None
+            
+                if leave_type_col is not None:
+            
+                    no_pay_leave = no_pay_leave[
+                        no_pay_leave[leave_type_col]
+                        .fillna("")
+                        .astype(str)
+                        .str.strip()
+                        .str.casefold()
+                        .eq("no pay leave")
+                    ].copy()
+            
+                    # --------------------------------------------------------
+                    # Use leave START date as the daily count date
+                    # --------------------------------------------------------
+                    if "請假開始" in no_pay_leave.columns:
+                        no_pay_leave["Date"] = (
+                            pd.to_datetime(
+                                no_pay_leave["請假開始"],
+                                errors="coerce",
+                            )
+                            .dt.normalize()
+                        )
+            
+                    elif "startdate" in no_pay_leave.columns:
+                        no_pay_leave["Date"] = (
+                            pd.to_datetime(
+                                no_pay_leave["startdate"],
+                                errors="coerce",
+                            )
+                            .dt.normalize()
+                        )
+            
+                    else:
+                        no_pay_leave["Date"] = pd.NaT
+            
+                    no_pay_daily = (
+                        no_pay_leave
+                        .dropna(subset=["Date"])
+                        .groupby("Date")
+                        .size()
+                        .reset_index(name="No Pay Leave")
+                    )
+            
+                    daily_summary = daily_summary.merge(
+                        no_pay_daily,
+                        on="Date",
+                        how="left",
+                    )
+            
+                    daily_summary["No Pay Leave"] = (
+                        daily_summary["No Pay Leave"]
+                        .fillna(0)
+                        .astype(int)
+                    )
+            
+                else:
+                    daily_summary["No Pay Leave"] = 0
+            
+            else:
+                daily_summary["No Pay Leave"] = 0
     
             daily_summary["Scheduled"] = (
                 daily_summary["Scheduled"]
