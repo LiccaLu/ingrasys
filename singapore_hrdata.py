@@ -4556,7 +4556,7 @@ The accompanying table includes:
                             "Date",
                         ]
                     )
-                )
+                
     
                 department_trend["Scheduled"] = (
                     department_trend["Scheduled"]
