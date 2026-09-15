@@ -4446,8 +4446,6 @@ The accompanying table includes:
         required_department_columns = [
             "部門",
             "上段應上班時間",
-            "上段實際下班時間",
-            "下段實際下班時間",
             "判斷出勤after leave",
         ]
     
@@ -4484,23 +4482,6 @@ The accompanying table includes:
                 & department_daily["Date"].notna()
                 & department_daily["部門"].notna()
             ].copy()
-
-            # ----------------------------------------------------
-            # Identify absence using the same rule as "problem"
-            # Both actual clock-out fields are blank
-            # ----------------------------------------------------
-            department_daily["Is Problem"] = (
-                department_daily["上段實際下班時間"].isna()
-                &
-                department_daily["下段實際下班時間"].isna()
-            )
-            
-            # If approved leave exists, it is NOT unplanned absence
-            department_daily["Is Unplanned Absent"] = (
-                department_daily["Is Problem"]
-                &
-                department_daily["判斷出勤after leave"].ne("Leave Approved")
-            )
     
             department_daily["部門"] = (
                 department_daily["部門"]
@@ -4555,8 +4536,11 @@ The accompanying table includes:
                             "size",
                         ),
                         Absent=(
-                            "Is Unplanned Absent",
-                            "sum",
+                            "判斷出勤after leave",
+                            lambda values: (
+                                values == "Absent"
+                            ).sum(),
+                        ),
                         ),
                         Approved_Leave=(
                             "判斷出勤after leave",
