@@ -4541,7 +4541,6 @@ The accompanying table includes:
                                 values == "Absent"
                             ).sum(),
                         ),
-                        ),
                         Approved_Leave=(
                             "判斷出勤after leave",
                             lambda values: (
@@ -4556,6 +4555,7 @@ The accompanying table includes:
                             "Date",
                         ]
                     )
+                )
                 
     
                 department_trend["Scheduled"] = (
