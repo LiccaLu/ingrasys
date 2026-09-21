@@ -4111,30 +4111,39 @@ The accompanying table includes:
                 .astype(int)
             )
     
-            # Chart A numerator:
-            # Absent + approved leave
+            # ============================================================
+            # Overall Absent
+            # ============================================================
+            
             daily_summary["Overall Absent"] = (
                 daily_summary["Absent"]
                 + daily_summary["All Leave"]
             )
-    
-            # Chart A percentage
-            daily_summary["Rate A"] = (
-                daily_summary["Overall Absent"]
-                / daily_summary["Scheduled"].replace(0, pd.NA)
-                * 100
-            ).fillna(0)
-    
-            # Chart B numerator:
-            # Absent + No Pay Leave
+            
+            # ============================================================
+            # Orange Bar: Absent + No Pay Leave
+            # ============================================================
+            
             daily_summary["Absence + No Pay Leave"] = (
                 daily_summary["Absent"]
                 + daily_summary["No Pay Leave"]
             )
             
-            # Chart B percentage:
             daily_summary["Rate B"] = (
                 daily_summary["Absence + No Pay Leave"]
+                / daily_summary["Scheduled"].replace(0, pd.NA)
+                * 100
+            ).fillna(0)
+            
+            # ============================================================
+            # Blue Bar: Overall - (Absent + No Pay Leave)
+            # ============================================================
+            
+            daily_summary["Rate A"] = (
+                (
+                    daily_summary["Overall Absent"]
+                    - daily_summary["Absence + No Pay Leave"]
+                )
                 / daily_summary["Scheduled"].replace(0, pd.NA)
                 * 100
             ).fillna(0)
