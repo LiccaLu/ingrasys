@@ -4168,7 +4168,7 @@ The accompanying table includes:
                     go.Bar(
                         x=daily_summary["Date"],
                         y=daily_summary["Rate A"],
-                        name="Overall Absent Rate",
+                        name="Overall Absent - (Absent + No Pay Leave) Rate",
                         marker_color="#285781",
             
                         text=[
